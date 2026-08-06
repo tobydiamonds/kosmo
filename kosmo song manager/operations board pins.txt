@@ -1,0 +1,12 @@
+operations board pins
+teensy	165
+0	1
+1	2
+2	9
+3	15
+
+teensy	max7219
+9	13	clk
+10	12	cs
+11	1	mosi
+12	nc	miso

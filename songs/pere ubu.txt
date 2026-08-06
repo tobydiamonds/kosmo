@@ -1,0 +1,66 @@
+init
+#intro 10 takter
+0=1 10 1
+0:tempo=133
+0:sampler=0
+0:sampler:0.mix=800
+0:seq:0=1000000000000000 0 0 0
+0:seq:0.div=6
+0:seq:0.ena=1
+0:seq:0.last=7
+#intro med beat + 1. vers
+1=4 4 2
+1:tempo=133
+1:sampler=0
+1:sampler:0.mix=800
+1:sampler:1.mix=800
+1:seq:0=1000001000100010 1000000010000000 0 0
+1:seq:0.div=6
+1:seq:0.ena=1
+1:seq:0.last=31
+1:seq:1=0000100000001000 0000100000001010 0000100000001000 0000100000001011
+1:seq:1.div=6
+1:seq:1.ena=1
+1:seq:1.last=63
+#bro 1
+2=1 6 3
+2:tempo=133
+2:sampler=0
+2:sampler:0.mix=800
+2:seq:0=1000100010001000 0 0 0
+2:seq:0.div=6
+2:seq:0.ena=1
+2:seq:0.last=15
+#omkvæd 1 - ingen trommemaskine/placeholder
+3=1 6 4
+3:tempo=133
+3:seq:0=0 0 0 0
+3:seq:0.div=6
+3:seq:0.ena=1
+3:seq:0.last=15
+#mellemspil
+4=1 16 5
+4:tempo=133
+4:sampler=0
+4:sampler:0.mix=800
+4:seq:0=1000000010000000 0 0 0
+4:seq:0.div=6
+4:seq:0.ena=1
+4:seq:0.last=15
+#vers 2
+5=4 3 -1
+5:tempo=133
+5:sampler=0
+5:sampler:0.mix=800
+5:sampler:1.mix=800
+5:seq:0=1000001000100010 1000000010000000 0 0
+5:seq:0.div=6
+5:seq:0.ena=1
+5:seq:0.last=31
+5:seq:1=0000100000001000 0000100000001010 0000100000001000 0000100000001011
+5:seq:1.div=6
+5:seq:1.ena=1
+5:seq:1.last=63
+6=0 0 -1
+7=0 0 -1
+apply

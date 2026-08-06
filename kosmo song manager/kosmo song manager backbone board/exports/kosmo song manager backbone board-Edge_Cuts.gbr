@@ -1,0 +1,23 @@
+%TF.GenerationSoftware,KiCad,Pcbnew,9.0.3*%
+%TF.CreationDate,2025-09-21T19:45:41+02:00*%
+%TF.ProjectId,kosmo song manager backbone board,6b6f736d-6f20-4736-9f6e-67206d616e61,rev?*%
+%TF.SameCoordinates,Original*%
+%TF.FileFunction,Profile,NP*%
+%FSLAX46Y46*%
+G04 Gerber Fmt 4.6, Leading zero omitted, Abs format (unit mm)*
+G04 Created by KiCad (PCBNEW 9.0.3) date 2025-09-21 19:45:41*
+%MOMM*%
+%LPD*%
+G01*
+G04 APERTURE LIST*
+%TA.AperFunction,Profile*%
+%ADD10C,0.050000*%
+%TD*%
+G04 APERTURE END LIST*
+D10*
+X184500000Y-49000000D02*
+X256500000Y-49000000D01*
+X256500000Y-215500000D01*
+X184500000Y-215500000D01*
+X184500000Y-49000000D01*
+M02*

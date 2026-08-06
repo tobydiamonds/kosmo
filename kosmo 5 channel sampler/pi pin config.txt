@@ -1,0 +1,33 @@
+gpio/pin	direction	function
+17/11		in		channel 1 trigger
+27/13		out		channel 1 indicator
+
+22/15
+23/16
+
+24/18
+25/22
+
+5/29
+6/31
+
+12/32
+13/33
+
+
+19/35		in		sample arm button
+16/36		out		sampler indicator
+
+pw: pi-sampler
+
+
+uno
+A0		in		channel 1 mix
+...
+A4		in		channel 5 mix
+A5		in		sampler threshold
+
+8		out		bank indikator
+9		in		load bank
+10		in		bank up
+11		in		bank down

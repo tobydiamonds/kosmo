@@ -1,0 +1,23 @@
+%TF.GenerationSoftware,KiCad,Pcbnew,9.0.3*%
+%TF.CreationDate,2025-10-12T21:41:27+02:00*%
+%TF.ProjectId,kosmo song manager 595 channel board,6b6f736d-6f20-4736-9f6e-67206d616e61,rev?*%
+%TF.SameCoordinates,Original*%
+%TF.FileFunction,Profile,NP*%
+%FSLAX46Y46*%
+G04 Gerber Fmt 4.6, Leading zero omitted, Abs format (unit mm)*
+G04 Created by KiCad (PCBNEW 9.0.3) date 2025-10-12 21:41:27*
+%MOMM*%
+%LPD*%
+G01*
+G04 APERTURE LIST*
+%TA.AperFunction,Profile*%
+%ADD10C,0.050000*%
+%TD*%
+G04 APERTURE END LIST*
+D10*
+X50000000Y-79500000D02*
+X210000000Y-79500000D01*
+X210000000Y-100688866D01*
+X50000000Y-100688866D01*
+X50000000Y-79500000D01*
+M02*

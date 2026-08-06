@@ -1,0 +1,14 @@
+# Claude Code project instructions (contains credentials)
+CLAUDE.md
+
+# Sub-module git repos (managed independently)
+kosmo song manager/teensy4-1/song-manager-v2/song-manager-v2/
+kosmo song manager/teensy4-1/song-manager-v1/
+kosmo drum sequencer/uno/kosmo-5ch-drum-sequencer/
+kosmo 5 channel sampler/uno/kosmo-5ch-sampler/
+kosmo tempo/kosmo tempo firmware/kosmo-tempo/
+kosmo-web-ui/
+
+# KiCad local history (embedded git repos)
+kosmo nts-1 multieffects/pcb/kosmo-nts1-multieffects/.history/
+kosmo song manager/kosmo song manager 595 channel board/.history/

@@ -1,0 +1,4 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "my-symbols") (type "KiCad") (uri "C:/Users/tobyd/KiCad/10.0/symbols/my-symbols.kicad_sym") (options "") (descr ""))
+)

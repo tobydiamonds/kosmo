@@ -1,0 +1,127 @@
+74HC595 (outputs) + 74HC165 (inputs) tutorial https://www.youtube.com/watch?v=Ys2fu4NINrA
+
+
+
+
+7 segment, 2 digits pins-to-segment
+digit 1 (right digit)
+
+	dp A  B  C  D
+	|  |  |  |  |
+
+
+	|  |  |  |  |
+       nc gnd G  F  E
+
+digit 2 (left digit)
+
+	dp A  B  C  D
+	|  |  |  |  |
+
+
+	|  |  |  |  |
+       gnd nc G  F  E
+
+
+     A
+   F   B
+     G
+   E   C
+     D  dp
+
+
+byte digits[10] = {
+  // dpABCDEFG (assuming common cathode and LSBFIRST)
+  B01111110, // 0 : ABCDEF
+  B00110000, // 1 : BC
+  B01101101, // 2 : ABDEG
+  B01111001, // 3 : ABCDG
+  B00110011, // 4 : BCFG
+  B01011011, // 5 : ACDFG
+  B01011111, // 6 : ACDEFG
+  B01110000, // 7 : ABC
+  B01111111, // 8 : ABCDEFG
+  B01110011// 9 : ABCFG
+};
+
+QA => dp
+QB => C
+QC => D
+QD => E
+QE => F
+QF => G
+QG => B
+QH => A
+
+
+pinheader
+J1 74HC595		UNO
+1  16/Vcc+10/SRCLR
+2  8/gnd/+13/OE
+3  14/SER		5
+4  12/RCLK		4
+5  11/SRCLK		3
+6  digit 1 enable	12
+7  digit 2 enable
+
+
+
+8in/8out board
+J1 - power
+
+J2 . 4 pin => output/74HC595
+   74HC595		UNO
+1  14/SER		4
+2  12/RCLK		5
+3  11/SRCLK		6
+4  9/QH			nc
+
+J3 - 5 pin => inputs/74HC165
+   74HC165		UNO
+1  1/SH/LD		7
+2  2/CLK		8
+3  9/QH			9
+4  10/SER		nc
+5  15/CLK IN		10
+
+
+enable & output board
+J1
+         5V-o   o-nc
+165/SH_LD/1-o   o-595/SRCLK/11
+  165/CLK/2-o   o-595/RCLK/12
+ 165/DATA/9-o   o-595/SER/14
+  165/CE/15-o   o-GND
+
+
+595-1
+QA channel 1 enabled led
+QB channel 2 enabled led
+QC channel 3 enabled led
+QD channel 4 enabled led
+QE channel 5 enabled led
+QF channel 1 output led
+QG channel 2 output led
+QH channel 3 output led
+
+595-2
+QA channel 4 output led
+QB channel 5 output led
+QC clock out led
+QD channel 5 output
+QE channel 4 output
+QF channel 3 output
+QG channel 2 output
+QH channel 1 output
+
+165
+A channel 1 enable switch
+B channel 2 enable switch
+C channel 3 enable switch
+D channel 4 enable switch
+E channel 5 enable switch
+F gnd
+G gnd
+H gnd
+
+

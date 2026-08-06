@@ -1,0 +1,36 @@
+SongProgrammer commands
+0=2 0 2 => 
+  currentSong.parts[0].drumSequencer.channel[all].lastStep=31
+  currentSong.parts[0].repeats = 0
+  currentSong.parts[0].chainTo = 2
+
+syntax:
+part=pages repeats chainToChannel 
+
+DrumSequencer commands
+0:seq:0=1000100010001000 => currentSong.parts[0].drumSequencer.channel[0].page[0]=1000100010001000
+0:seq:0=0x88 => currentSong.parts[0].drumSequencer.channel[0].page[0]=1000100010001000
+0:seq:0=0x88 0x8F => 
+  currentSong.parts[0].drumSequencer.channel[0].page[0]=1000100010001000
+  currentSong.parts[0].drumSequencer.channel[0].page[1]=1000100010001111
+0:seq:0.div=16 => currentSong.parts[0].drumSequencer.channel[0].divider=6 (16th notes)
+0:seq:0.ena=0 => currentSong.parts[0].drumSequencer.channel[0].enabled=false
+0:seq:0.last=31 => currentSong.parts[0].drumSequencer.channel[0].lastStep=31 (2 bars)
+
+syntax:
+part:module:channel=page0-pattern [page1-pattern] [page2-pattern] [page3-pattern]
+part:module:channel.function=value
+
+Tempo commands
+0:tempo=120 => currentSong.parts[0].tempo.bpm=120
+
+syntax:
+part:module=bpm
+
+Sampler commands
+0:sampler=1 => currentSong.parts[0].sampler.bank=1
+0:sampler:0.mix=510 => currentSong.parts[0].sampler.mix[0]=512
+
+syntax:
+part.module=bpm
+part.module.channel.function=value

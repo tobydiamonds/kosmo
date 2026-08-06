@@ -1,0 +1,3 @@
+yellow 	> 220R
+red	> 330R
+green	> 2K2R
