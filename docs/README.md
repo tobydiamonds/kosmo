@@ -9,9 +9,9 @@ These documents serve as the reference specification for any code changes made t
 | Module | Controller | I2C Role | Doc |
 |--------|-----------|----------|-----|
 | [Song Manager](song-manager.md) | Teensy 4.1 | Master | Complete |
-| Drum Sequencer | Arduino Mega | Slave (addr 9) | Pending |
-| Tempo/Clock | Arduino Uno | Slave (addr 8) | Pending |
-| 5-Channel Sampler | Raspberry Pi + Arduino Uno | Slave (addr 10) | Pending |
+| [Drum Sequencer](drum-sequencer.md) | Arduino Mega | Slave (addr 9) | Complete |
+| [Tempo/Clock](tempo.md) | Arduino Uno | Slave (addr 8) | Complete |
+| [5-Channel Sampler](sampler.md) | Raspberry Pi + Arduino Uno | Slave (addr 10) | Complete |
 
 ## System Overview
 
