@@ -1,5 +1,5 @@
-# Claude Code project instructions (contains credentials)
-CLAUDE.md
+# Credentials
+.credentials
 
 # Sub-module git repos (managed independently)
 kosmo song manager/teensy4-1/song-manager-v2/song-manager-v2/
