@@ -12,3 +12,6 @@ kosmo-web-ui/
 # KiCad local history (embedded git repos)
 kosmo nts-1 multieffects/pcb/kosmo-nts1-multieffects/.history/
 kosmo song manager/kosmo song manager 595 channel board/.history/
+
+# Node.js (test dependencies)
+node_modules/

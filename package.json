@@ -1,0 +1,28 @@
+{
+  "name": "kosmo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tobydiamonds/kosmo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/tobydiamonds/kosmo/issues"
+  },
+  "homepage": "https://github.com/tobydiamonds/kosmo#readme",
+  "dependencies": {
+    "jzz": "^1.9.6",
+    "serialport": "^13.0.0"
+  }
+}
