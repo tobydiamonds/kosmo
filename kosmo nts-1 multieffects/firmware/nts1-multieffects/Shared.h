@@ -12,7 +12,9 @@ uint8_t adcToCC(uint16_t adc) {
   if (adc >= 980) return 0;
   if (adc <= 40) return 127;
   uint8_t mapped = (uint8_t)((((uint32_t)(adc - 40)) * 127) / 940);
-  return 127 - mapped;
+  uint8_t val = 127 - mapped;
+  if (val <= 5) return 0;
+  return val;
 }
 
 uint8_t ccToDisplay(uint8_t cc) {

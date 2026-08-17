@@ -4,9 +4,9 @@
 #define I2C_MAX 32
 #define PARTS 16
 
-#define MOD_TYPES 4
-#define DELAY_TYPES 5
-#define REVERB_TYPES 5
+#define MOD_TYPES 7
+#define DELAY_TYPES 7
+#define REVERB_TYPES 7
 
 #define NUM_POTS 8
 #define NUM_DISPLAYS 3

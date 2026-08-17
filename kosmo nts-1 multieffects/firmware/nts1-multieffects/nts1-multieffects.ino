@@ -188,9 +188,9 @@ void updateAllDisplays() {
 }
 
 void updateEffectLeds() {
-  setLed(0, 1 << (6 - effectType[0])); // MOD: bit 6=type0, bit 5=type1, ...
-  setLed(1, 1 << (6 - effectType[1])); // DELAY
-  setLed(2, 1 << (6 - effectType[2])); // REVERB
+  setLed(0, effectType[0] == 0 ? 0 : 1 << (7 - effectType[0]));
+  setLed(1, effectType[1] == 0 ? 0 : 1 << (7 - effectType[1]));
+  setLed(2, effectType[2] == 0 ? 0 : 1 << (7 - effectType[2]));
 }
 
 // CV LED bit mapping: pot 0-7 → physical LED position on DIG3
