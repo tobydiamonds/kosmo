@@ -15,6 +15,7 @@ The `docs/` directory contains the canonical functional specification for each m
 - `docs/drum-sequencer.md` — Drum Sequencer (step patterns, clock, triggers, dividers)
 - `docs/tempo.md` — Tempo/Clock (BPM generation, morphing, tap tempo, MIDI clock)
 - `docs/sampler.md` — 5-Channel Sampler (Uno + Pi architecture, banks, mix levels)
+- `docs/power-distribution.md` — Mains inlet (AC-01 fused IEC + switch), fusing, wiring, 5V rail
 
 ## Build & Upload
 

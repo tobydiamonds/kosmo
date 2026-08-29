@@ -13,6 +13,12 @@ These documents serve as the reference specification for any code changes made t
 | [Tempo/Clock](tempo.md) | Arduino Uno | Slave (addr 8) | Complete |
 | [5-Channel Sampler](sampler.md) | Raspberry Pi + Arduino Uno | Slave (addr 10) | Complete |
 
+## Hardware / Infrastructure
+
+| Topic | Doc |
+|-------|-----|
+| [Power Distribution](power-distribution.md) — mains inlet, fusing, switch wiring, 5 V rail | Complete |
+
 ## System Overview
 
 The Kosmo system is a master-slave architecture connected over I2C. The Song Manager (Teensy 4.1) is the master — it stores songs, sequences parts, and distributes instructions to slave modules. Slaves execute playback independently once configured.
