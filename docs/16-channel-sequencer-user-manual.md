@@ -37,6 +37,9 @@ If you have attached an external midi keyboard you can set the note value by str
 
 Up to four notes can be stored pr step. If you play a fifth note, it will replace the first note.
 
+## Editing a step
+Each step has a number of configuration options that will effect how the notes in the step behave.
+
 ### Disable a step
 When pressing an active step button, while in edit mode, the step is deactivated. All settings are left untouched but no midi messages will be sent from that step.
 
@@ -45,9 +48,6 @@ When long pressing Note 1-button, while in edit mode, all step values are set to
 
 ### Copy a step
 In edit mode you can long press one step and press another step button to copy all settings to that step. This operation can be repeated without releasing the original step to quickly get many copies of a single step.
-
-## Editing a step
-Each step has a number of configuration options that will effect how the notes in the step behave.
 
 ### Step length
 Determines when the note-off command is sent. The value is relative to the channel divider-value, so if set to 1 (one step=one 16th note) a step length of 2 means that the step will play for 2 16th notes. If the length of a step extends into other active steps, these will not produce note-on events. Other midi messages will be sent even though the notes themselves are ignored.
