@@ -1,5 +1,5 @@
 # Kosmo 16 channel midi sequencer user manual
-The Kosmo 16 channel midi sequencer allows you to program sequences, chords, drones, drum machines etc in 16 individual channels. Each channel has a specific machine attached to it, the allows for specific behaviors.
+The Kosmo 16 channel midi sequencer allows you to program sequences, chords, drones, drum machines etc in 16 individual channels. Each channel has a specific machine attached to it that allows for specific behaviours.
 
 <img width="800" alt="image" src="https://github.com/user-attachments/assets/46affeb4-1ce6-47f8-8de6-8da6acbe8301" />
 
@@ -35,7 +35,16 @@ Up to four notes can be stored pr step.
 ### Change notes via external midi keyboard
 If you have attached an external midi keyboard you can set the note value by striking a key on the midi keyboard while press and holding the step button. 
 
-Up to four notes can be stored pr step. If you play a fifth note, it will replace the first note. 
+Up to four notes can be stored pr step. If you play a fifth note, it will replace the first note.
+
+### Disable a step
+When pressing an active step button, while in edit mode, the step is deactivated. All settings are left untouched but no midi messages will be sent from that step.
+
+### Resetting a step
+When long pressing Note 1-button, while in edit mode, all step values are set to their default values.
+
+### Copy a step
+In edit mode you can long press one step and press another step button to copy all settings to that step. This operation can be repeated without releasing the original step to quickly get many copies of a single step.
 
 ## Editing a step
 Each step has a number of configuration options that will effect how the notes in the step behave.
