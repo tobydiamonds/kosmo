@@ -171,6 +171,63 @@ Default channel divider is 4 (every step is a 1/4 note).
 | Note 4 | Define a bass note, 1-3 octaves below the root| |
 
 ## Drone
+The drone machine holds a cluster of up to 4 notes for as long as the channel is enabled. There are no steps to program - the step matrix shapes the drone instead: the top row gates the notes, and the bottom three rows set how fast CC1-CC3 move. Machine colour is green.
+
+Notes 1-4 define the notes in the cluster. All four sound together and they follow the channel scale, as on every other machine. An edit mode is required to change any setting - nothing on the drone can be changed from play mode.
+
+The notes are sent when the channel is enabled, no matter where the other channels are in their patterns. If the drone is already enabled when the clock starts it sounds together with everything else from the first pulse.
+
+### Grid rows
+| Row | What it does |
+|-----|--------------|
+| 1 | Gate pattern - default all 16 steps on |
+| 2-5 | Not used yet |
+| 6 | CC1 modulation speed |
+| 7 | CC2 modulation speed |
+| 8 | CC3 modulation speed |
+
+### Row 1 - the gate
+Row 1 runs at the channel divider, 16 steps per period. The gate acts on the changes between steps, not on the steps themselves:
+
+| Going from | To | What is sent |
+|------------|----|--------------|
+| off | on | Note on |
+| on | on | Nothing - the notes keep sounding |
+| on | off | Note off |
+
+With all 16 steps on (the default) you get one note on when the channel is enabled and nothing after that until it is disabled - a plain, unbroken drone. Switching steps off cuts holes in it.
+
+Successive active steps never retrigger, so the gate only ever articulates where the pattern changes.
+
+TBD: when the channel is enabled while the sequencer is already running, does row 1 start from step 1, or carry on from wherever the channel counter has reached? Elsewhere in the module a disabled channel keeps counting so that re-enabling returns in phase.
+
+### Rows 6-8 - modulation speed
+Each of the bottom three rows sets the speed of a sine that sweeps its CC from 0 up to the value set on that CC's encoder. The row reads as a bar, not as a pattern - pressing step n lights steps 1 to n:
+
+| Bar | Speed |
+|-----|-------|
+| nothing lit | No modulation, the CC is not sent |
+| 1 | One cycle per divider period |
+| n | n cycles per divider period |
+| 16 | Sixteen cycles per divider period |
+
+Step 1 has a double meaning: when it is the only step lit, pressing it switches the row off. Going from a fast speed to no modulation therefore takes two presses - step 1, then step 1 again.
+
+Because the period follows the divider, a long divider gives slow evolving movement and a short one gives audible wobble, from the same bar setting.
+
+### Channel parameters
+| Channel parameter | What it does | Comments |
+|-------------------|--------------|----------|
+| Divider | Sets the period for row 1 and for all three modulators | Long periods are the normal case for a drone |
+| Volume | Defines the volume of the notes | (see above) |
+| Scale | Locks notes 1-4 to the scale | (see above) |
+| Length | Not used - the drone has no sequence length | |
+
+### Gestures the drone does not use
+| Gesture | What happens |
+|---------|--------------|
+| Green + step | Nothing - the drone has no last step |
+| Step long press | Nothing - there are no per-step settings, so there is no ALT layer |
 
 ## Arpeggio
 The arpegiator machine uses the ENV to decide patterns. The list of patterns have not yet been defined, but it will have the useual suspects.
