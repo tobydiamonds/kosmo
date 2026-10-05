@@ -107,3 +107,24 @@ Determines which scale to lock step notes to.
 | PMa  | Pentatonic Major | 0 2 4 7 9 | c d e g a |
 | PMI  | Pentatonic Minor | 0 3 5 7 10 | c d# f g a# |
 | BLU  | Blues | 0 3 5 6 7 10 | c d# e f# g a# |
+
+# Play Mode
+When channels are playing the different machines can react to incoming midi notes. Here the channel scale setting plays a role in what happens when midi notes arrives.
+
+Sequencer: Single note transposes the entire sequence to the closes note in the scale relative to the incoming note. If 2 notes are evenly close to the incoming note, the lower note is chosen. Multiple notes - the last note is used as the single note. Sequencer does not support multiple notes for transposing.
+
+Drum machine: not effect
+
+Chord machine: Single note transposes the root note and uses the channel scale to determine the other notes as per their individual settings.
+
+# Machines
+
+## Sequencer
+
+## Chord
+
+## Drone
+
+## Arpeggio
+
+## Drum
