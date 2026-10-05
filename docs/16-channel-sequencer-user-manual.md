@@ -39,5 +39,78 @@ If you have attached an external midi keyboard you can set the note value by str
 
 Up to four notes can be stored pr step. If you play a fifth note, it will replace the first note. 
 
+## Editing a step
+Each step has a number of configuration options that will effect how the notes in the step behave.
+
+### Step length
+Determines when the note-off command is sent. The value is relative to the channel divider-value, so if set to 1 (one step=one 16th note) a step length of 2 means that the step will play for 2 16th notes. If the length of a step extends into other active steps, these will not produce note-on events. Other midi messages will be sent even though the notes themselves are ignored.
+
+### Step volume
+Determines the volume of all notes in the step. This is baked into the note-on messages as the intensity value.
+
+### Step envelope
+Tightly coupled to the step volume, the step envelope allows you to specify a volume algorithm for the step The volume algorithm starts with the note on message and ends with the note off message. Min value is 0 and the max value is the step volume. The volume changes will be sent as CC messages on CC#7.
+
+| Envelope type   | Volume behavior |
+|-----------------|---------------------------|
+| Gat (gate)      | Plays the sound with full volume |
+| SaV (saw)       | Plays the sound witha a increasing volume |
+| Ra2 (racthet 2) | Repeats the sound 2 times within the step length |
+| Ra3 (racthet 3) | Repeats the sound 3 times within the step length |
+| R43 (racthet 4) | Repeats the sound 4 times within the step length |
+
+### Step CCs
+You can configure up to 3 midi CCs pr step. These will be sent with the note-on message(s). Message for CC#7 will be ignored as they are reserved by the envelope setting.
+
+### Step program change
+You can configure one midi program change pr step. Note that not all external hardware can comply with many fast program changes. The program change will be sent before any other midi messages. The intended use is to set it at the beginning of a sequence if required.
+
+### Step trigger
+The trigger decides under which circumstance the step will send midi messages. 
+| Trigger | Behavior | Comments |
+|---------|----------|----------|
+| 1.1     | Plays every time | (default) |
+| 1.2     | Plays on 2nd repeat | |
+| 1.3     | Plays on 3rd repeat | |
+| ...     | ... | |
+| 1.8     | Plays on 8th repeat | |
+| FSt     | Plays first time | |
+| LSt     | Plays last time | This only works on combination with Song Manager repeats |
+| FSt2    | Plays first two | |
+| LSt2    | Plays last two | This only works on combination with Song Manager repeats |
+| FSt3    | Plays first three | |
+| LSt3    | Plays last three | This only works on combination with Song Manager repeats |
+
 ### Saving and discarding changes
 When in edit mode you can save changes by pressing the channel select-button. To discard changes since the last change you can long press the channel select-button. In both cases the LED stops blinking.
+
+## Channel settings
+Each channel can be toggled on or off where off effectively prevents midi messages to be sent and there by muting any external devices on that midi channel. This happens when pressing the channel edit-button. A channel can be toggled on or off without it being selected.
+
+Other channel settings are accessed by pressing and holding the channel edit button while changing the parameters.
+
+### Channel divider
+Determines the tempo the channel advances one step.
+| Divider | Note length |
+|---------|-------------|
+| 1       | 1/16 (default) |
+| 2       | 1/8 |
+| 4       | 1/4 |
+| 8       | 1/1 |
+| 16      | 2/1 |
+| 32      | 4/1 |
+
+### Channel length
+Determines the maximum length of the sequence. Min value is 1, max value is 128.
+
+### Channel volume
+Set the max volume for any step in the sequence. If steps has a value higher than the channel volume, the step volume is cut at the channel volume. The stored step value is not effected. 
+
+### Channel scale
+Determines which scale to lock step notes to.
+| Name | Scale | Tones from base tone | Notes in C-scale |
+|------|-------|----------------------|------------------|
+| CHr  | Chromatic (default) | all 12 | c c# d d# e f f# g g# a a# b |
+| PMa  | Pentatonic Major | 0 2 4 7 9 | c d e g a |
+| PMI  | Pentatonic Minor | 0 3 5 7 10 | c d# f g a# |
+| BLU  | Blues | 0 3 5 6 7 10 | c d# e f# g a# |
