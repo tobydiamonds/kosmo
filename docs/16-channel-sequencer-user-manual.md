@@ -52,6 +52,8 @@ In edit mode you can long press one step and press another step button to copy a
 ### Step length
 Determines when the note-off command is sent. The value is relative to the channel divider-value, so if set to 1 (one step=one 16th note) a step length of 2 means that the step will play for 2 16th notes. If the length of a step extends into other active steps, these will not produce note-on events. Other midi messages will be sent even though the notes themselves are ignored.
 
+Values below 1 give a gate shorter than a single step. The range is 0.1 to 0.9 in tenths of a step interval, so on a channel with divider 1 a length of 0.5 plays for half a 16th note. This is how you get staccato steps without changing the divider.
+
 ### Step volume
 Determines the volume of all notes in the step. This is baked into the note-on messages as the intensity value.
 
@@ -61,10 +63,10 @@ Tightly coupled to the step volume, the step envelope allows you to specify a vo
 | Envelope type   | Volume behavior |
 |-----------------|---------------------------|
 | Gat (gate)      | Plays the sound with full volume |
-| SaV (saw)       | Plays the sound witha a increasing volume |
-| Ra2 (racthet 2) | Repeats the sound 2 times within the step length |
-| Ra3 (racthet 3) | Repeats the sound 3 times within the step length |
-| R43 (racthet 4) | Repeats the sound 4 times within the step length |
+| SaV (saw)       | Plays the sound with an increasing volume |
+| Ra2 (ratchet 2) | Repeats the sound 2 times within the step length |
+| Ra3 (ratchet 3) | Repeats the sound 3 times within the step length |
+| Ra4 (ratchet 4) | Repeats the sound 4 times within the step length |
 
 ### Step CCs
 You can configure up to 3 midi CCs pr step. These will be sent with the note-on message(s). Message for CC#7 will be ignored as they are reserved by the envelope setting.
@@ -106,9 +108,9 @@ Determines the tempo the channel advances one step.
 | 1       | 1/16 (default) |
 | 2       | 1/8 |
 | 4       | 1/4 |
-| 8       | 1/1 |
-| 16      | 2/1 |
-| 32      | 4/1 |
+| 8       | 1/2 |
+| 16      | 1/1 |
+| 32      | 2/1 |
 
 ### Channel length
 Determines the maximum length of the sequence. Min value is 1, max value is 128.
@@ -230,7 +232,7 @@ Because the period follows the divider, a long divider gives slow evolving movem
 | Step long press | Nothing - there are no per-step settings, so there is no ALT layer |
 
 ## Arpeggio
-The arpegiator machine uses the ENV to decide patterns. The list of patterns have not yet been defined, but it will have the useual suspects.
+The arpeggiator machine uses the ENV to decide patterns. The list of patterns have not yet been defined, but it will have the usual suspects.
 
 The 4 notes and the scale will be the foundation of which notes to be in the arpeggio.
 

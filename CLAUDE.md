@@ -38,6 +38,7 @@ The `docs/` directory contains the canonical functional specification for each m
 - `docs/drum-sequencer.md` — Drum Sequencer (step patterns, clock, triggers, dividers)
 - `docs/tempo.md` — Tempo/Clock (BPM generation, morphing, tap tempo, MIDI clock)
 - `docs/sampler.md` — 5-Channel Sampler (Uno + Pi architecture, banks, mix levels)
+- `docs/16-channel-sequencer-user-manual.md` — **16-Channel Sequencer user manual — the source of truth for this module** (read before the specs below)
 - `docs/16-channel-sequencer.md` — 16-Channel MIDI Sequencer (Case 2 — tracks, steps, modes, control link)
 - `docs/16-channel-sequencer-hardware.md` — 16-Channel Sequencer electrical architecture and bring-up checklist
 - `docs/16-channel-sequencer-machines.md` — 16-Channel Sequencer machines: shell/machine split, input ownership, per-machine input semantics

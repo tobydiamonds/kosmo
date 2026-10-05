@@ -32,7 +32,7 @@ The system is two cases. Case 1 is built and playing; Case 2 is in assembly.
 | [Tempo/Clock](tempo.md) | Arduino Uno | 1 | Slave (addr 8) | Validated |
 | [5-Channel Sampler](sampler.md) | Raspberry Pi + Arduino Uno | 1 | Slave (addr 10) | Validated |
 | NTS-1 Multieffects | Arduino Nano | 1 | Slave | 1 of 3 fitted and playing; ⚠️ implicated in the hum |
-| [16-Channel MIDI Sequencer](16-channel-sequencer.md) | Teensy 4.1 | 2 | Serial link from master | Spec settled; hardware in assembly; **firmware not started** |
+| [16-Channel MIDI Sequencer](16-channel-sequencer.md) | Teensy 4.1 | 2 | Serial link from master | Spec settled; hardware in assembly; **firmware not started**. ⚠️ The [user manual](16-channel-sequencer-user-manual.md) is the source of truth |
 
 ## Hardware / Infrastructure
 
@@ -41,7 +41,8 @@ The system is two cases. Case 1 is built and playing; Case 2 is in assembly.
 | [Power Distribution](power-distribution.md) — mains inlet, fusing, switch wiring, 5 V rail | Validated for Case 1; Case 2 PSU not chosen |
 | [Inter-Case Interconnect](inter-case-interconnect.md) — two-case split, isolation rules, why the link is not raw I2C | Medium decided (serial + ground); **protocol unspecified, Case 1 not fitted** |
 | [16-Channel Sequencer Hardware](16-channel-sequencer-hardware.md) — board slicing, fin row boards, merged master+bus board, chip allocation | **Executed — awaiting validation.** PCBs ordered, never powered |
-| [16-Channel Sequencer Machines](16-channel-sequencer-machines.md) — shell/machine split, input ownership, gesture rules, per-machine input semantics | **In progress** — proposed, not ratified. Drum and drone machines undefined |
+| [16-Channel Sequencer Machines](16-channel-sequencer-machines.md) — shell/machine split, input ownership, gesture rules, per-machine input semantics | ✅ **Ratified** 2026-10-05. Five machines; drone and drum specified, arpeggio and chord partial |
+| [16-Channel Sequencer User Manual](16-channel-sequencer-user-manual.md) — how the module behaves from the player's side | ⚠️ **Source of truth** as of 2026-10-05. The specs above are aligned to it |
 
 ## Research / Proposed Features
 

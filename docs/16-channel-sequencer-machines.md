@@ -5,30 +5,37 @@ How hardware input reaches a channel's **machine**, and what each input means fo
 Companion to [16-channel-sequencer.md](16-channel-sequencer.md) (behaviour) and
 [16-channel-sequencer-hardware.md](16-channel-sequencer-hardware.md) (electrical).
 
-**Status — 2026-10-04:**
+**Status — 2026-10-05:**
 
 | Aspect | State |
 |---|---|
-| The shell / machine split | **In progress** — proposed here, not ratified |
-| Input ownership table | **In progress** — the table below is the proposal |
+| The shell / machine split | ✅ **Ratified** — the user manual specifies a machine per channel |
+| Input ownership table | **Settled** as the working model |
 | Gesture recognition rules | **In progress** |
-| Sequencer machine | Step gestures **settled** (inherited from the main doc); encoder map proposed |
-| Chord machine | Note semantics **settled**; everything else undefined |
-| Drum machine | **Undefined** — `tbd` on the board |
-| Drone machine | **In progress** — notes, scale lock, gate pattern, sine CC modulators, row map, colour GREEN and timing specified 2026-10-05; ⚠️ re-enable phase and green-hold reachability contradict the main doc |
+| Sequencer machine | Step gestures **settled**; colour **YELLOW**; ALT layer undefined |
+| Chord machine | Note semantics **settled**; colour ❓ (was YELLOW, which the sequencer now holds) |
+| Drum machine | **Specified** — 8 lanes × 16; per-lane settings held on each lane head; divider channel-wide. Paging open |
+| Arpeggio machine | **In progress** — generated from NOTE 1 + scale; pattern and octave range on the ENV encoder; pattern list `TBD` |
+| Drone machine | **Specified** 2026-10-05 — notes, scale lock, gate pattern, sine CC modulators, row map, colour GREEN, timing. ⚠️ re-enable phase still contradicts the main doc |
 | Firmware | **Not started** |
 
-⚠️ **This document introduces a concept the main doc does not have.** The main doc specifies three
-*modes* per track and no notion of a machine. Where the two disagree, the main doc is the plan of
-record until this one is ratified — the collisions are listed in [Collisions](#collisions-with-the-plan-of-record)
-rather than silently resolved.
+✅ **The machine concept is ratified, and the precedence has changed.** The
+[user manual](16-channel-sequencer-user-manual.md) is the **source of truth** as of 2026-10-05, and
+it is written in terms of machines: *"Each channel has a specific machine attached to it that allows
+for specific behaviours."* Five machines are named — **sequencer, chord, drone, arpeggio, drum**.
+
+This document is no longer a proposal against the main doc. Where the three disagree, the order is:
+**manual → this document → [16-channel-sequencer.md](16-channel-sequencer.md)**. The remaining
+collisions are listed in [Collisions](#collisions-with-the-plan-of-record) rather than silently
+resolved.
 
 ---
 
 ## Why there is a bridge at all
 
 A channel's machine decides what a step *is*. The sequencer machine reads the 128-button grid as a
-128-step line; a drum machine almost certainly reads it as lanes × steps. The chord machine
+128-step line; the drum machine reads it as 8 lanes × 16, and the drone machine as a gate row plus
+three modulation bars. The chord machine
 reinterprets NOTE 2 as a scale degree where the sequencer reads it as a MIDI note — so the same
 encoder, under the same silkscreen, edits a different thing on a different channel.
 
@@ -121,9 +128,9 @@ A step-button press is resolved in this order. The first match consumes it.
 | 3 | Event is **long-press-reached** | Machine — opens the ALT layer, momentary |
 | 4 | otherwise | Machine — plain press |
 
-❓ **Rule 1 assumes the machine uses `lastStep`.** For a machine that does not (a drone machine
-probably has no loop length), it is undecided whether green+press falls through to the machine or
-does nothing.
+✅ **Rule 1 applies on every machine that has a step count** *(confirmed 2026-10-05)* — the
+sequencer, chord and arpeggio machines, and a drum lane. On the **drone machine**, which has no step
+count, green + press falls through to nothing: the shell consumes it and the machine never sees it.
 
 ❓ **What a step press does in play mode is undefined.** The example logic on the board guards on
 `mode == step-edit`, which leaves 128 buttons inert during performance. Decide whether play-mode
@@ -199,7 +206,7 @@ allocates nothing, touches no SD, and keeps its hot state out of `EXTMEM` — PS
 does not belong in the clock path. The 32.9 KB of step data stays in `EXTMEM`; a machine's own state
 is a step cursor, a pulse counter and some trigger counters.
 
-**Allocation: static, no heap.** 4 machine types × 16 channels at tens of bytes each is ~4 KB. No
+**Allocation: static, no heap.** 5 machine types × 16 channels at tens of bytes each is ~4 KB. No
 placement new, no arena, no fragmentation, and no stale pointer when a machine is swapped
 mid-press.
 
@@ -254,7 +261,7 @@ machine-held animation state, so `render()` stays pure.
 
 | | |
 |---|---|
-| Colour | ⚠️ specified as ORANGE, which the hardware cannot produce — see [Collisions](#collisions-with-the-plan-of-record) |
+| Colour | **YELLOW** — set by the user manual, superseding the unproducible ORANGE |
 | Grid | **128-step line**, 8 rows × 16, all steps visible, no paging |
 | Steps | 1–128, 1–4 notes per step |
 | Track fields used | divider, lastStep, volume, midiChannel, midiPort |
@@ -279,7 +286,7 @@ for.
 
 | | |
 |---|---|
-| Colour | YELLOW |
+| Colour | ❓ **needs reassigning** — the manual gives YELLOW to the sequencer, so the chord machine cannot keep it |
 | Grid | ❓ undefined — 128-step line, as the sequencer, is the obvious reading but is not stated |
 | Steps | 1–128 |
 | Track fields used | scale (**required** — derives the chord degrees), divider, length, volume, midiChannel, midiPort |
@@ -313,20 +320,51 @@ undefined.
 
 ### Drum machine
 
-**Undefined — `tbd` on the board.** Recording the structural fork, because it is the question that
-decides whether grid geometry has to be machine-owned at all:
+✅ **Option (a) — 8 lanes × 16 — chosen by the user manual, 2026-10-05.** The structural fork is
+closed: *"The drum machine arranges the channel in 8 individual tracks where Note 1 defines how the
+track maps to the external midi device."*
 
-| Option | Grid reading | Consequence |
-|---|---|---|
-| (a) | **8 lanes × 16 steps** — grid rows are drum voices | 128 single-note steps, so no change to the Step struct. But `lastStep` and `divider` become per-lane or shared, and the ALT/base layers now address a *lane's* step |
-| (b) | 128-step line, one drum per channel | No new geometry; a kit needs 8 of the 16 channels |
-| (c) | something else | — |
+| | |
+|---|---|
+| Colour | **BLUE** |
+| Grid | **8 lanes × 16 columns.** Grid rows are drum voices, not a step line |
+| Steps | **1–64 per lane**, so a lane is up to 4 pages of 16 |
+| Note | **NOTE 1 per lane** is the MIDI note that addresses the external drum voice |
 
-(a) is the only option that makes `gridRows`/`gridCols` load-bearing. It is also the one that
-multiplies the open questions, since every per-track field has to be decided per-lane or not.
+**Lane heads double as lane-edit buttons.** Steps **1, 17, 33, 49, 65, 81, 97 and 113** — the first
+column of each row — are both the lane's first step and its edit button. Long-pressing one opens
+that lane's settings:
 
-❓ Colour BLUE is the only thing settled.
+| Per-lane setting | Range |
+|---|---|
+| Length | 1–64 steps |
+| Volume | baked into that lane's note-on velocity |
+| CCs | — |
+| Trigger | — |
 
+✅ **This is what makes `gridRows` / `gridCols` load-bearing**, as this document anticipated — the
+drum machine is the first machine to read the grid as a 2-D lane map rather than a line. The drone
+machine's row classes are the second.
+
+✅ **The per-lane settings need no new storage** *(confirmed 2026-10-05)*. A lane's settings **are
+its first step's** — long-pressing the lane head opens them, and there are no per-lane settings
+beyond those four. So `length`, `velocity`, `cc[]` and `trigger` on the lane-head step serve as the
+lane's values, and the channel keeps one copy of each channel-level field.
+
+✅ **`divider` stays channel-wide**, since it is not among the per-lane settings. All 8 lanes of a
+drum channel therefore advance together, and polyrhythm between drum voices is not available within
+one channel.
+
+⚠️ **This gives the lane head's own step parameters two readings** — its base layer is that step, its
+long-press layer is the lane. That is a machine-specific definition of the ALT layer, and the first
+one in the module.
+
+❓ **Still open:**
+
+- **Paging.** The manual's own `TBD`: a lane longer than 16 steps needs a way to page through its
+  1–4 pages, and nothing on the panel is assigned to it.
+- How the base encoder layer addresses *a lane's* step rather than a channel's step.
+- What the lane-head LEDs show, given they carry two meanings.
 ### Drone machine
 
 **Specified 2026-10-05.** Four held notes, a gate pattern and three sine CC modulators — and no step
@@ -437,30 +475,72 @@ divider, and it sets the period of the gate pattern and all three modulators tog
 | Green + step press | **Nothing.** Precedence rule 1 sets `lastStep`, which this machine does not use |
 | Black long-press | **Nothing** — there is no ALT layer |
 
-⚠️ **"Green long-press has no functionality here" cannot be taken at face value.** On the panel,
-**green held *is* the track layer** — the gesture that reaches DIVIDER, LENGTH, VOLUME and SCALE
-(main doc, [Parameter Layers](16-channel-sequencer.md#parameter-layers--scope-rule)). This machine
-claims **divider, volume and scale**, so if green-hold does nothing, those three have no control on
-the panel at all. ❓ The reading that keeps the machine workable is that *green + step* does nothing
-while *green held* still opens the track layer — confirm, because the alternative leaves the drone's
-period, level and note lock unreachable.
+✅ **Green-hold still opens the channel layer here — resolved by the user manual.** The manual states
+that "other channel settings are accessed by pressing and holding the channel edit button", with no
+machine exception, so the drone's **divider, volume and scale** are reached the same way as on every
+other machine. What has no function on this machine is **green + a step press**, which elsewhere set
+the channel length.
 
 ❓ **Still open:** whether realtime-edit is distinct from step-edit on this machine, given there are
 no per-step settings to record into.
 
 ---
 
-## Collisions with the plan of record
+### Arpeggio machine
 
-| # | Collision |
+**Named in the user manual, 2026-10-05, with a worked example but no pattern list.** The machine
+generates its own notes from one seed note plus the channel scale, rather than from programmed steps.
+
+| | |
 |---|---|
-| 1 | **The main doc has modes, not machines.** Its yellow-button state tables are specified in terms of mode only. `Mode` must stay on the Channel — if it moves onto the Machine, every machine reimplements the transition table |
-| 2 | **Sequencer = ORANGE is not producible.** The MAX7219 gives 7 on/off colours and no PWM; orange needs dithering and then has to be distinguished from the yellow that play mode uses on the same LED. With red reserved for edit mode, ~4 colours are reliably distinguishable. Not yet reassigned |
-| 3 | **Machine identity is invisible in edit mode** — both edit states are red, and that is when the encoder semantics matter most. All 15 display windows are allocated, so there is nowhere else to put it |
-| 4 | **`machineType` is not in the main doc's data model** and must be persisted. Once it is, Step becomes a machine-interpreted payload |
-| 5 | **The Channel struct on the board and the main doc's track struct disagree** — the board adds `Volume` and `Scale` and drops `midiChannel`/`midiPort` |
-| 6 | **The machine-select gesture is unspecified** — "yellow + green", but which is held and which is pressed, and how it sits beside green-held (track layer) and green+step (last step) |
-| 7 | **Machine swap semantics undecided** — does changing a channel's machine clear its steps, or reinterpret them? Reinterpretation is arguably a feature and definitely a surprise. `validate()` exists in the interface for whichever answer is chosen |
+| Colour | ❓ undefined |
+| Grid | ❓ undefined — the steps are auto-filled, so what the grid edits is unstated |
+| Note source | **NOTE 1 of step 1** seeds it; the channel **scale** supplies the rest |
+| Track fields used | scale (**required**), divider, length, volume, midiChannel, midiPort. The pattern lives on the **ENV encoder**, not in a channel field |
+
+**The manual's example**, which fixes the arithmetic if not the controls:
+
+> Scale = Pentatonic Minor, Divider = 1, Length = 16, Pattern = `ud1` (up-down one octave),
+> step 1 NOTE 1 = C3 → the machine fills steps 2–16 as
+> `c3 d#3 f3 g3 a#3 g3 f3 d#3 c3 d#3 f3 g3 a#3 g3 f3 d#3`
+
+So the pattern walks the scale up to the octave and back down, and the sequence is *generated*, not
+entered. That makes this the first machine whose step data is an output rather than an input.
+
+✅ **The ENV encoder owns the pattern** *(confirmed 2026-10-05)*. There is **no channel pattern
+field** — the manual's "Channel Pattern = ud1" was loose wording in the example. The **ENV** encoder
+selects, from a predefined list, both the **direction pattern and the octave range** in one value:
+`ud1` is up-down across one octave.
+
+This is a machine reinterpretation in the same class as the chord machine's NOTE 2–4: the encoder
+keeps its silkscreen and changes its meaning. ⚠️ **ENV must not use the envelope display format
+here** — `Gat` / `SaV` / `Ra2`–`Ra4` are meaningless on this machine, and the 4-digit ENV window has
+to render pattern codes instead.
+
+❓ **Still open:** the pattern list itself (the manual's `TBD`, "the usual suspects"), colour, what
+the grid shows and whether a generated note can be overridden, and whether `length` caps the
+generated run.
+
+
+## Collisions — resolved and remaining
+
+Six of the seven collisions this document opened are now closed. The precedence that
+closes them is **manual → this document → main doc**.
+
+| # | Collision | State |
+|---|---|---|
+| 1 | **The main doc has modes, not machines** | ✅ **Resolved.** The manual is written in machine terms and the concept is ratified. `Mode` stays on the Channel — if it moved onto the Machine, every machine would reimplement the transition table |
+| 2 | **Sequencer = ORANGE is not producible** | ✅ **Resolved.** The manual makes the sequencer **YELLOW**, which the MAX7219 produces directly. No dithering, no ambiguity |
+| 3 | **Machine identity is invisible in edit mode** | ✅ **Resolved.** Colour now carries the machine and **blink** carries the mode, so identity stays visible in edit mode — which is when encoder semantics matter most |
+| 4 | **`machineType` is not in the main doc's data model** | ✅ **Resolved.** Added to the struct; Step is now explicitly a machine-interpreted payload |
+| 5 | **The Channel struct and the main doc's track struct disagree** | ✅ **Resolved.** `volume` and `scale` are in the struct; `midiChannel`/`midiPort` are retained and default to the channel's own number |
+| 6 | **The machine-select gesture is unspecified** | ✅ **Resolved.** **Green held + yellow pressed** — each yellow press advances to the next machine with the mode LED previewing its colour, and releasing green creates it. It sits beside the other two green-hold targets without collision: encoders reach channel settings, a step press sets `lastStep`, a yellow press cycles the machine |
+| 7 | **Machine swap semantics undecided** | ⚠️ **Open, and now reachable.** The gesture says the machine is *"created"* on the channel, which leans toward a fresh instance — so existing step data is cleared or re-validated rather than reinterpreted. But "created" is a word in a gesture description, not a decision about 32 KB of step data. `validate()` exists in the interface for whichever answer is chosen |
+
+⚠️ **The select gesture is blocked on the two unassigned colours.** It cycles by colour, and the
+chord and arpeggio machines have none — chord held YELLOW, which the sequencer now owns. The
+**cycle order** is undefined too. Both are
+[main doc open question 28](16-channel-sequencer.md#open-questions).
 
 The seven loose ends in the mode-LED state table itself — selected ∧ playing precedence, "save"
 vs. the no-SD-writes-while-playing rule, the undefined "armed" state, the step-pulse blink at high

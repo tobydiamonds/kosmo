@@ -12,7 +12,7 @@
 
 | Aspect | State |
 |---|---|
-| Behaviour / functional spec | **Settled.** This document is the plan of record |
+| Behaviour / functional spec | **Settled.** ⚠️ The [user manual](16-channel-sequencer-user-manual.md) is the **source of truth** as of 2026-10-05; this document is the implementation spec beneath it |
 | Schematics | **Executed — awaiting validation.** Reconciled against a netlist export 2026-09-18 |
 | PCBs | **Ordered** — main board, row board, step-settings board. None powered up |
 | Components | Majority sourced |
@@ -88,79 +88,172 @@ The two can coexist, but which one leads decides how the encoders feel across th
 
 ## Modes
 
-The module has three modes. Mode is per-track and is selected with the yellow button of that track.
+Mode is per-channel and selected with that channel's yellow **channel select-button**.
 
-⚠️ **A per-channel "machine" concept is being planned that extends this section** — each channel
-instantiates a machine (sequencer, chord, drum, drone) that owns grid geometry, encoder meaning and
-display formatting, with the mode LED's colour carrying machine identity. It is **not ratified**, and
-it collides with the mode-only state tables below. See
+✅ **The machine concept is ratified** *(user manual, 2026-10-05)*. Each channel has a machine
+attached to it — **sequencer, chord, drone, arpeggio or drum** — and the machine owns grid geometry,
+encoder meaning and display formatting. See
 [16-channel-sequencer-machines.md](16-channel-sequencer-machines.md).
 
-| Mode | Yellow LED | Purpose |
-|------|-----------|---------|
-| **Play** | Off / solid yellow / blinking yellow | Normal playback. Grid displays the selected track's sequence. |
-| **Step edit** | Solid red | Steps are programmed by hand on the grid; the encoders edit the selected step. |
-| **Realtime edit** | Blinking red | Notes are recorded live into the running sequence. Requires a clock pulse — with no clock, the track falls back to step-edit mode. |
+| Mode | Channel select LED | Purpose |
+|------|--------------------|---------|
+| **Play** | **Solid**, in the machine's colour | Normal playback. The grid displays the selected channel's sequence. |
+| **Edit** (programming) | **Blinking**, in the machine's colour | Settings can be changed and steps programmed by hand on the grid. Editing is possible while the sequence plays. |
 
-### Yellow Button — Mode Selector
+⚠️ **Colour now encodes the machine, not the mode.** The sequencer machine is **yellow** and every
+other machine has its own colour, so **blink state is what carries the mode**. This supersedes the
+earlier scheme — play yellow, step-edit solid **red**, realtime-edit blinking **red** — under which
+colour was spent on the mode. Two consequences, both of them improvements:
 
-**Play mode states**
+- The sequencer's colour is **yellow**, not the orange that the MAX7219 cannot produce. Machines
+  doc collision #2 is resolved.
+- Machine identity stays visible **in** edit mode, which is when the encoder semantics matter most.
+  Machines doc collision #3 is resolved.
 
-| LED | Meaning | Single click | Long click |
-|-----|---------|--------------|------------|
-| **Off** | Track not selected, not playing, not armed | Select track (deselects all other tracks) | Enter step-edit mode |
-| **Solid yellow** | Track selected — its sequence is displayed in the step grid | — | Enter step-edit mode |
-| **Blinking yellow** | Track is playing (blinks with the track's step pulse; only while clocked) | — | — |
+### Channel select-button (yellow)
 
-**Edit mode states**
+| State | Single press | Long press |
+|-------|--------------|------------|
+| Not selected | Select the channel (deselects all others) | Select the channel **and** enter edit mode |
+| Selected, play mode | — | Enter edit mode |
+| **Edit mode** | **Save** changes, return to play mode | **Discard** changes made since the last save, return to play mode |
 
-| LED | Meaning | Single click | Long click |
-|-----|---------|--------------|------------|
-| **Solid red** | Step-edit mode | Switch to realtime-edit mode | Save and return to play mode |
-| **Blinking red** | Realtime-edit mode (only while clocked; otherwise falls back to step-edit) | Switch to step-edit mode | Save and return to play mode |
+In both edit-mode cases the LED stops blinking.
 
+✅ **Realtime-edit mode is retained** *(confirmed 2026-10-05)*. The manual describes only one editing
+state because realtime-edit was omitted from it; the human will add it. The three-mode model stands:
+
+| Mode | Channel select LED | Purpose |
+|------|--------------------|---------|
+| **Step edit** | Blinking in the machine's colour | Steps programmed by hand on the grid |
+| **Realtime edit** | ❓ blink pattern undecided — colour is spoken for | Notes recorded live into the running sequence. Requires a clock; with no clock it falls back to step-edit |
+
+❓ **Two gestures, three destinations.** The manual gives single-press to *save* and long-press to
+*discard*, which leaves nothing to switch between step-edit and realtime-edit — the press that used
+to do it is now save. And with colour carrying the machine, the two edit modes can only differ by
+blink rate or duty. Both need deciding — see [open question 13](#open-questions).
 Only one track's sequence is displayed in the grid at a time — selecting a track deselects the others.
 
-### Green Button — Track Enable / Track Parameters
 
-- **Single click:** enable / disable the track. A **disabled track keeps advancing its step counter but sends no MIDI** — it runs silently, so re-enabling it returns in phase rather than from step 1.
-- **Hold:** the step-parameter section addresses the **track-level** parameters. Defined so far: **LENGTH → DIVIDER**.
-- **Hold + press a step:** sets the track's **last step**. All steps up to the last step light until the green button is released.
+### Green Button — Channel Enable / Channel Settings
 
-Green LED: on = track enabled.
+- **Single press:** enable / disable the channel. Disabling prevents MIDI being sent, muting any
+  external device on that channel. ✅ **A channel can be toggled without being selected.**
+- **Hold:** the step-parameter section addresses the **channel-level** settings — **DIVIDER, LENGTH,
+  VOLUME, SCALE** per the panel's green labels, plus MIDI channel. ✅ Confirmed as the route to every
+  channel setting *(user manual, 2026-10-05)*; this holds on every machine, including those with no
+  step data of their own.
+- ✅ **Hold + press a step:** sets the channel's **last step**, with all steps up to it lit until the
+  green button is released. *(Confirmed 2026-10-05.)* It applies on **every machine that has a
+  number of steps** — so the sequencer, chord and arpeggio machines, and a drum lane; the drone
+  machine, which has no step count, ignores it.
+- ✅ **Hold + press yellow:** **selects the channel's machine.** Each yellow press advances to the
+  next machine, the mode LED previewing that machine's colour; on **releasing green** the machine is
+  created on the channel. *(Confirmed 2026-10-05.)*
+
+A **disabled channel keeps advancing its step counter and sends no MIDI** — it runs silently, so
+re-enabling returns it in phase rather than from step 1. ⚠️ The drone machine's gate pattern is
+specified to *start* when the channel is enabled, which pulls the other way; see the
+[machines doc](16-channel-sequencer-machines.md#drone-machine).
+
+Green LED: on = channel enabled.
+
+### Selecting a Channel's Machine
+
+✅ **Green held + yellow pressed** *(decision, 2026-10-05)*. This closes the last unspecified
+gesture in the module.
+
+| Step | What happens |
+|------|--------------|
+| Hold green | The channel enters its settings layer, as above |
+| Press yellow | Advance to the next machine. The mode LED shows **that machine's colour** |
+| Press yellow again | Advance again, cycling through the five machines |
+| Release green | **The machine is created on the channel** |
+
+**Green-hold is one modifier with three targets**, and they do not overlap because each uses a
+different button:
+
+| While green is held | Target |
+|---------------------|--------|
+| Turn an encoder | Channel settings — DIVIDER, LENGTH, VOLUME, SCALE |
+| Press a step | Set the channel's last step |
+| Press yellow | Cycle the channel's machine |
+
+⚠️ **The LED is previewing an uncommitted value while green is held.** That is a new LED state: it
+shows a *candidate* machine, not the channel's current one. Firmware has to keep the pending value
+separate from the committed one, and the compositor has to be told which it is showing.
+
+❓ **The cycle order is undefined, and two of the five colours are unassigned.** "Next machine"
+needs a fixed order, and the chord and arpeggio machines have no colour yet — so the cycle cannot be
+walked end to end today. Known: sequencer **yellow**, drone **green**, drum **blue**. See
+[open question 28](#open-questions).
+
+❓ **There is no abort.** Releasing green commits whatever colour is showing, so a mis-press is
+undone only by cycling round again — at most four more presses with five machines. Acceptable, but
+worth knowing it is deliberate rather than missing.
+
+⚠️ **"Created" is suggestive but does not settle what happens to existing step data.** A fresh
+instance implies the channel's steps are cleared or re-validated rather than reinterpreted under the
+new machine — which is the open machine-swap question, see
+[machines doc collision 7](16-channel-sequencer-machines.md#collisions--resolved-and-remaining).
 
 ### Parameter Layers — Scope Rule
 
-The 12 encoders address three layers, selected by which button is held. This keeps per-step and per-track editing on separate gestures, so a turn of an encoder is never ambiguous about what it changes:
+The 12 encoders address three layers, selected by which button is held. This keeps per-step and
+per-channel editing on separate gestures, so a turn of an encoder is never ambiguous about what it
+changes:
 
 | Gesture | Layer | Scope |
 |---------|-------|-------|
 | Nothing held | **Base** parameters (NOTE 1–4, LENGTH, VOLUME, CC1–3, ENV, PROGRAM, TRIGGER) | Selected **step** |
 | **Black** step button long-pressed | **ALT** parameters — a second parameter on each encoder | Selected **step** |
-| **Green** track button held | **Track** parameters — **DIVIDER, LENGTH, VOLUME, SCALE** per the panel's green labels; the other 8 slots are unlabelled | Whole **track** |
+| **Green** channel button held | **Channel** settings — **DIVIDER, LENGTH, VOLUME, SCALE** per the panel's green labels; the other 8 slots are unlabelled | Whole **channel** |
 
-The ALT layer's 12 slots are reserved and none are defined yet.
+The ALT layer's 12 slots are reserved and none are defined yet. ⚠️ **The layers are
+machine-interpreted**: a machine with no per-step data has no ALT layer and reads its base layer as
+channel-scoped — the drone machine does both.
 
+**Encoder push-and-hold has one defined use:** long-pressing the **NOTE 1** encoder in edit mode
+resets every value on the selected step to its default.
 ---
 
 ## Step Grid
 
-- 128 black buttons in 8 rows of 16 — the full 128 steps of one track, all visible at once (no paging).
-- Shows the **selected** track's sequence; the playhead is indicated on top of the programmed steps.
-- Steps beyond the track's **last step** are **not lit** — the lit region shows the loop length at a glance.
+- 128 black buttons in 8 rows of 16. On the sequencer machine this is the full 128 steps of one
+  channel, all visible at once with no paging. ⚠️ **Grid geometry is machine-owned** — the drum
+  machine reads the same buttons as 8 lanes × 16, and the drone machine as one gate row plus three
+  modulation bars.
+- Shows the **selected** channel's sequence; the playhead is indicated on top of the programmed steps.
+
+**Step LED colours** *(user manual, 2026-10-05)*:
+
+| Step LED | Meaning |
+|----------|---------|
+| **Unlit** | Beyond the channel's length — the sequence never reaches it |
+| **White** | Within the length, inactive — sends nothing |
+| **Yellow** | Active — will sound when the playhead reaches it |
+
+So the white-plus-yellow region shows the loop length at a glance, and newly selecting a channel with
+length 16 lights the first 16 steps white.
 
 ### Step Button Gestures
 
 | Gesture | Effect |
 |---------|--------|
-| **Press** | Activates / deactivates the step **and** selects it for editing in the step-parameter section |
+| **Press** | Activates / deactivates the step **and** selects it for editing. Activating a step sets **NOTE 1 to A3** |
 | **Long press (held)** | Opens the **ALT parameter layer** for that step — **momentary**, active only while the button is held |
-| **Press while a green track button is held** | Sets that step as the track's **last step** |
+| **Long press, then press another step** | **Copies** every setting to that step. The source may be held and further destinations pressed, to fan one step out quickly |
+| **Press while holding a step + striking a MIDI key** | Records the struck note onto the held step — see [MIDI IN](#midi-in-din) |
+| **Press while a green channel button is held** | ✅ Sets that step as the channel's **last step** — on every machine that has a step count |
 
-An active step sends the notes, CCs and program change configured on it. A deactivated step sends nothing — its stored parameters are retained, just not transmitted.
+An active step sends the notes, CCs and program change configured on it. A deactivated step sends
+nothing — its stored parameters are retained, just not transmitted.
 
-The ALT layer is **momentary** — held, not latched. Simple to implement and impossible to get stuck in; the cost is that editing several ALT values in a row means holding the step button throughout.
+**Up to 4 notes are stored per step.** Striking a fifth note from a MIDI keyboard **replaces the
+first**.
 
+The ALT layer is **momentary** — held, not latched. Simple to implement and impossible to get stuck
+in; the cost is that editing several ALT values in a row means holding the step button throughout.
 ---
 
 ## Step Parameters
@@ -169,17 +262,36 @@ Each of the 128 steps of each of the 16 tracks carries all of the following.
 
 ### Note
 
-Which MIDI note(s) to start on the step — up to 4 simultaneous notes (NOTE 1–4). LENGTH decides when the note-off is sent. Default `--` (no note).
+Which MIDI note(s) to start on the step — up to 4 simultaneous notes (NOTE 1–4). LENGTH decides when
+the note-off is sent. ✅ **Activating a step sets NOTE 1 to A3** *(user manual, 2026-10-05)*; notes
+2–4 start empty, and an empty note reads `--`. A note can only be set to a note within the channel's
+**scale**.
 
-Display encoding: **first digit = tone, second digit = octave, decimal point = sharp** (e.g. `A4`, `d.3` = D♯3). The octave digit covers 0–9, i.e. 120 of the 128 MIDI notes — the lowest octave (MIDI 0–11) is not reachable from the panel, which is musically irrelevant but worth knowing when MIDI IN records a note below C0.
+Display encoding: **first digit = tone, second digit = octave, decimal point = sharp** (e.g. `A4`,
+`d.3` = D♯3). The octave digit covers 0–9, i.e. 120 of the 128 MIDI notes — the lowest octave
+(MIDI 0–11) is not reachable from the panel, which is musically irrelevant but worth knowing when
+MIDI IN records a note below C0.
 
 ### Length
 
-Decides when the note-off is sent. The value is **in units of the track's step interval**, i.e. it scales with the divider:
+Decides when the note-off is sent. The value is **in units of the channel's step interval**, i.e. it
+scales with the divider:
 
 - `divider = 1, length = 1` → one 16th note
 - `length = 2` → two step intervals
 - Values below 1 (`0.1`–`0.9`) set a fractional gate length within one step interval
+
+✅ **A step whose length runs over following active steps suppresses their note-ons**
+*(user manual, 2026-10-05)*. Their other MIDI — CCs and program change — is still sent; only the
+notes are swallowed.
+
+✅ **Fractional gate lengths are retained** *(confirmed 2026-10-05; the manual's omission was an
+oversight and has been corrected there)*. Tenths of a step interval, stored as `1 = 0.1 … 255 =
+25.5`. ⚠️ **This is what obliges the event scheduler to be time-based rather than pulse-counting**:
+at `divider = 1` a step is only 6 PPQN, so `length = 0.1` is 0.6 of a pulse and cannot be expressed
+as a pulse count at all. See the
+[machines doc](16-channel-sequencer-machines.md#the-interface) on `pulse()` enqueuing rather than
+transmitting.
 
 ### Divider
 
@@ -194,7 +306,9 @@ The rate at which the track advances one step. `divider = 1` follows the tempo a
 | 16 | 1/1 (whole) note |
 | 32 | 2/1 (double whole) note |
 
-*The original design note listed `8 → 1/1`, `16 → 2/1`, `32 → 4/1`, which skipped the half note and broke the doubling. Corrected above to consistent doubling, per decision.*
+✅ **The divider table and the manual now agree** — the manual's sequence skipped the half note
+(`4 → 1/4` straight to `8 → 1/1`) and was corrected at source on 2026-10-05 to the consistent
+doubling above.
 
 At 24 PPQN, PPQN-per-step = `6 × divider`.
 
@@ -210,13 +324,19 @@ Applied from the first PPQN of the step through to the step's LENGTH.
 
 | Display | Name | Behavior |
 |---------|------|----------|
-| `GAt` | Gate | Plays the sound at full volume |
+| `Gat` | Gate | Plays the sound at full volume |
 | `SaV` | Saw | Plays the sound with an increasing volume |
-| `RA2` | Ratchet 2 | Repeats the sound 2 times within the step |
-| `RA3` | Ratchet 3 | Repeats the sound 3 times within the step |
-| `RA4` | Ratchet 4 | Repeats the sound 4 times within the step |
+| `Ra2` | Ratchet 2 | Repeats the sound 2 times within the step |
+| `Ra3` | Ratchet 3 | Repeats the sound 3 times within the step |
+| `Ra4` | Ratchet 4 | Repeats the sound 4 times within the step |
 
-**Volume-modulating envelopes are implemented with the volume CC.** Any envelope that changes volume while the note is sounding — `SaV`, and any future shape — is sent as a **Channel Volume (CC7) ramp** across the step, since velocity is fixed at note-on and cannot be changed mid-note. Ratchets (`RA2`–`RA4`) need no CC; they are repeated note-on/note-off pairs.
+
+✅ **Envelope display codes are settled** — the manual's `R43` was a typo for `Ra4` and is corrected
+there. The five codes are `Gat`, `SaV`, `Ra2`, `Ra3`, `Ra4`. ⚠️ The manual writes them in mixed
+case, which a 7-segment digit cannot express; rendering is case-insensitive in practice, so treat the
+codes as the three-character strings and let the display do what it can.
+
+**Volume-modulating envelopes are implemented with the volume CC.** Any envelope that changes volume while the note is sounding — `SaV`, and any future shape — is sent as a **Channel Volume (CC7) ramp** across the step, since velocity is fixed at note-on and cannot be changed mid-note. Ratchets (`Ra2`–`Ra4`) need no CC; they are repeated note-on/note-off pairs.
 
 **Span:** envelopes and ratchets span **one step interval** — the divider-dependent step length, not a literal 16th note. A ratchet on a track with `divider = 4` therefore repeats within a quarter note.
 
@@ -224,7 +344,10 @@ Applied from the first PPQN of the step through to the step's LENGTH.
 
 **Ramp resolution: 10 points per step.** Enough to avoid an audibly stepped ramp without flooding the port; to be fine-tuned once it can be heard.
 
-**Collision rule: the envelope wins.** If a track runs a volume envelope and one of the step's CC slots also targets CC7 on the same channel, the envelope's ramp takes precedence and the step's CC7 slot is ignored.
+**Collision rule: CC7 is reserved outright.** ✅ The manual states that a step's CC slot targeting
+**CC#7 is ignored**, because CC7 belongs to the envelope *(user manual, 2026-10-05)*. This is
+stronger than the earlier rule, which gave the envelope precedence only when one was actually
+running: CC7 is now never available to a step's CC slots, whatever the envelope is set to.
 
 ⚠️ **DIN bandwidth ceiling.** MIDI DIN carries ~3,125 bytes/s, so a 10-point ramp costs 30 bytes ≈ **9.6 ms of port time per step, per track**. At 120 BPM a 16th-note step is 125 ms, so one enveloped track uses ~8 % of the port, four use ~31 %, and roughly **twelve simultaneous DIN volume envelopes would saturate it** — before counting notes and clock. The internal synths on USB have no comparable limit, so prefer USB-routed tracks for heavy envelope use, and treat this as the number to revisit if DIN timing ever feels loose.
 
@@ -232,33 +355,58 @@ Applied from the first PPQN of the step through to the step's LENGTH.
 
 Up to 3 CC messages sent on the step. Each has a **CC number** (0–127) and a **value** (0–127); default `--` on both. The encoder's push switch selects which of the two fields it is editing.
 
+⚠️ **CC#7 cannot be used here** — it is reserved by the envelope. See [Envelope](#envelope).
+
 ### Program
 
 Which program change to send on the step. Values 0–127, default `--`.
 
 ### Trigger
 
-Conditional trigger rule — decides whether the step actually fires on a given pass. Displayed in a 4-character window (the mockup shows `LSt2`).
+Conditional trigger rule — decides whether the step actually fires on a given pass. Displayed in a
+4-character window.
 
-Three families of condition:
+✅ **"Occurrence" means a repeat from the Song Manager** — the manual confirms it, noting that `LSt`,
+`LSt2` and `LSt3` "only work in combination with Song Manager repeats". That is what makes "last"
+knowable in advance.
+
+✅ **The probability family is removed** *(decision, 2026-10-05)* — a step either fires on a rule or
+it does not. Nothing in this module decides what to play at random. Two families remain:
 
 | Family | Display | Values | Meaning |
 |--------|---------|--------|---------|
-| **Ratio** | `1.1` … `8.8` | `n:m` for m = 1–8, n = 1–m (36 combinations) | Fires on occurrence *n* of every *m*. `1:1` = always |
-| **Probability** | `0` … `100` | 0–100 | Fires with that percentage chance. `0` = never |
+| **Ratio** | `1.1` … `1.8` | fires on 1 of every *m*, m = 1–8 | `1.1` = every time (default), `1.2` = every 2nd pass, … `1.8` = every 8th |
 | **Position** | `FSt`, `LSt`, `FSt2`, `LSt2`, `FSt3`, `LSt3` | 6 values | Fires only on the first / last / first two / last two / first three / last three occurrences |
 
-The four-character display window exists precisely for `FSt2`-style values; ratios read as `n.m` with the decimal point standing in for the colon.
+The four-character display window exists precisely for `FSt2`-style values; ratios read as `n.m` with
+the decimal point standing in for the colon.
 
-**Encoding:** 36 + 101 + 6 = **143 distinct values, so a single `uint8_t` covers the whole set** with room to spare.
+**Encoding:** 8 + 6 = **14 distinct values**, trivially one byte. The earlier scheme counted 143
+because it included 0–100 probability and the full 36-entry `n:m` grid.
 
-❓ **What counts as an "occurrence"?** For `LSt` (last) to be knowable *in advance*, the total must be finite and known — which points at the **part's repeat count from the Song Manager**, not the track's own endless looping. But a track's `lastStep` can differ from the part length, so the two do not coincide. Confirm which one counts: the part's repeats (makes `LSt` meaningful) or the track's own loop passes (makes `LSt` unknowable until the part ends).
-
-Please supply a legible copy of that note and this section will be filled in exactly.
-
-❓ The note's heading reads as "Mixer", but its values match the **TRIGGER** display. Confirm the heading is a leftover and this is the trigger-condition table.
+❓ **Only the `1.m` row of the ratio grid is defined.** The manual lists `1.1`–`1.8`, i.e. "one pass
+in every *m*". The earlier spec allowed any `n:m` with n = 1…m — `2.3` meaning "the 2nd pass of every
+3" — which is 36 combinations and a musically useful thing to have. Whether the other rows exist is
+unstated; the table above is the manual's subset.
 
 ### Scale
+
+✅ **Four scales are implemented first; the set grows later** *(decision, 2026-10-05)*. The manual's
+four are the build target, and more are wanted — but that is **pinned until the first four work**.
+
+| Code | Scale | Semitones from root | Mask |
+|------|-------|---------------------|------|
+| `CHr` | Chromatic (default) | all 12 | `0xFFF` |
+| `PMa` | Pentatonic Major | 0 2 4 7 9 | `0x295` |
+| `PMI` | Pentatonic Minor | 0 3 5 7 10 | `0x4A9` |
+| `BLU` | Blues | 0 3 5 6 7 10 | `0x4E9` |
+
+⚠️ **The 7-segment display problem is dormant, not solved.** All four codes above render on a
+7-segment digit, so it does not bite today — but `PMa` and `PMI` are still distinguished only by
+case, which a 7-segment digit cannot express, and the ten deferred scales include eight codes
+containing **M**, **W** or **X**. Picking codes from the renderable alphabet is cheaper to do while
+there are four of them than after the set has grown. See [open question 9](#open-questions) and the
+full fourteen-scale table below, which is retained as the roadmap.
 
 **A track-level parameter**, on the TRIGGER encoder's green label. Decides which scale notes are locked to. **Default: Chromatic** (all 12 semitones), which is a no-op — so a track that wants no scale behaviour gets it by default.
 
@@ -318,9 +466,18 @@ Undecided, and the two answers behave very differently:
 
 Non-destructive makes scale a performance control; destructive makes it an entry aid. ❓ Snap direction (nearest / down / up) is also undefined, as is what happens on a tie.
 
-### Last Step
+### Channel Length (Last Step)
 
-The step at which the sequence starts over (from step 1). Set by holding the track's green button and pressing the intended last step; steps within the last step light up until the green button is released.
+✅ **Track-level LENGTH and `lastStep` are the same field** *(user manual, 2026-10-05)* — the
+long-standing question is answered. It is **the maximum length of the sequence, 1–128**, set by
+holding the green channel button and turning the **LENGTH** encoder. While turning, the length is
+shown by the inactive steps lit **white**.
+
+Reducing the length below an active step leaves that step lit, but the sequence never reaches it, so
+its data is preserved.
+
+❓ The green-hold **+ step press** gesture also set this value coarsely. The manual does not mention
+it — see [open question 14](#open-questions).
 
 ---
 
@@ -328,30 +485,46 @@ The step at which the sequence starts over (from step 1). Set by holding the tra
 
 ```
 SequencerPart
-└── track[0..15]
+└── channel[0..15]
+    ├── machineType: uint8_t  (0=sequencer 1=chord 2=drone 3=arpeggio 4=drum)
     ├── step[0..127]
     │   ├── note[0..3]:  uint8_t   (0–127, 0xFF = none)
     │   ├── velocity:    uint8_t   (0–127)          ← VOLUME
-    │   ├── length:      uint8_t   (tenths of a step interval: 1 = 0.1 … 255 = 25.5)
-    │   ├── envelope:    uint8_t   (0=GAT 1=SAW 2=RA2 3=RA3 4=RA4)
+    │   ├── length:      uint8_t   (⚠️ tenths of a step interval: 1 = 0.1 … 255 = 25.5 — see Length)
+    │   ├── envelope:    uint8_t   (0=Gat 1=SaV 2=Ra2 3=Ra3 4=Ra4)
     │   ├── cc[0..2]:    { number: uint8_t, value: uint8_t }   (0xFF = none)
     │   ├── program:     uint8_t   (0–127, 0xFF = none)
     │   ├── trigger:     uint8_t   (condition code)
     │   └── flags:       uint8_t   (step active, …)
-    ├── midiChannel: uint8_t  (1–16)
+    ├── midiChannel: uint8_t  (1–16, defaults to the channel's own number)
     ├── midiPort:    uint8_t  (0 = DIN out, 1..N = USB host device slot)
     ├── divider:     uint8_t  (1, 2, 4, 8, 16, 32)
-    ├── lastStep:    uint8_t  (0–127)
-    ├── volume:      uint8_t  (track level — the green VOLUME label)
+    ├── lastStep:    uint8_t  (1–128 — the panel’s LENGTH; the same field)
+    ├── volume:      uint8_t  (channel level — the green VOLUME label)
     ├── scale:       uint8_t  (scale index, 0 = Chromatic — see Scale)
-    └── enabled:     uint8_t  (0 or 1 — disabled tracks advance silently)
+    └── enabled:     uint8_t  (0 or 1 — disabled channels advance silently)
 ```
 
-**Size:** 16 bytes per step × 128 steps = 2 KB per track, ≈ 32.9 KB per part, ≈ **526 KB for 16 parts**.
+**Size:** 16 bytes per step × 128 steps = 2 KB per channel, ≈ 32.9 KB per part, ≈ **526 KB for 16
+parts**. `machineType` adds 16 bytes per part, which is noise against that.
 
-⚠️ **This struct is incomplete.** `volume` and `scale` are added above from the panel's green labels. Still missing: the track-level **LENGTH** on the panel (pending the question of whether it *is* `lastStep`), a **key/root** field if the `C-M` scale display form is chosen, and **`machineType`** if the machine concept is ratified — see [16-channel-sequencer-machines.md](16-channel-sequencer-machines.md).
+✅ **`machineType` is now required**, since the machine concept is ratified — a Step therefore becomes
+a **machine-interpreted payload** rather than a fixed record, and the same 16 bytes mean different
+things on a drum channel than on a sequencer channel.
 
-That comfortably exceeds the Teensy 4.1's 512 KB of RAM2, so part storage belongs in **PSRAM (`EXTMEM`)**, as the Song Manager already does for its large structs. The 8 MB PSRAM leaves plenty of headroom.
+✅ **The drum machine needs no new fields** *(confirmed 2026-10-05)*. A drum lane's settings are
+**exactly the ones already defined on that lane's first step** — steps 1, 17, 33, 49, 65, 81, 97 and
+113 — reached by long-pressing the lane head. There are no other per-lane settings, so `length`,
+`velocity`, `cc[]` and `trigger` on the lane-head step serve as the lane's, and the per-channel
+fields keep their single copies. **`divider` therefore stays channel-wide** on a drum channel, since
+it is not among the per-lane settings.
+
+⚠️ **One field still unsettled:** a **key/root** field, if the `C-M` scale display form is ever
+chosen. Not needed for the four scales being built first.
+
+That comfortably exceeds the Teensy 4.1's 512 KB of RAM2, so part storage belongs in **PSRAM
+(`EXTMEM`)**, as the Song Manager already does for its large structs. The 8 MB PSRAM leaves plenty of
+headroom.
 
 ---
 
@@ -370,7 +543,11 @@ That comfortably exceeds the Teensy 4.1's 512 KB of RAM2, so part storage belong
 
 ## MIDI Ports and Routing
 
-Each of the 16 tracks is assigned **one output port + one MIDI channel**.
+Each of the 16 channels is assigned **one output port + one MIDI channel**.
+
+✅ **Channels default to the matching MIDI channel** *(user manual, 2026-10-05)* — sequencer channel
+1 sends and receives on MIDI channel 1, channel 2 on MIDI channel 2, and so on. The assignment is
+editable per channel from the green-hold layer.
 
 | Port | Purpose | Direction | Transport |
 |------|---------|-----------|-----------|
@@ -409,7 +586,12 @@ MIDIDevice_BigBuffer usbmidi4(myusb);   // spare — declare headroom now, it is
 
 ### MIDI IN (DIN)
 
-**Purpose: note entry.** Playing an external keyboard into DIN IN enters MIDI information onto steps — **notes, length, and velocity (VOLUME)** — in both step-edit and realtime-edit modes.
+**Purpose: note entry.** Playing an external keyboard into DIN IN enters MIDI information onto
+steps — **notes, length, and velocity (VOLUME)**.
+
+✅ **The gesture is: hold a step button and strike a key** *(user manual, 2026-10-05)*. Up to four
+notes are stored per step; a **fifth note replaces the first**. The struck note is subject to the
+channel's scale like any other.
 
 MIDI IN is **not** used as a clock source (the CLOCK IN jack is) and does not act as a thru.
 
@@ -540,11 +722,11 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 | Topic | Decision |
 |-------|----------|
 | Controller | Teensy 4.1 |
-| Parameter layers | Three layers by gesture: base (per-step), ALT via **black long-press** (per-step, 12 slots undefined), track via **green hold** (DIVIDER, LAST STEP) |
+| Parameter layers | Three layers by gesture: base (per-step), ALT via **black long-press** (per-step, 12 slots undefined), channel via **green hold** (DIVIDER, LENGTH, VOLUME, SCALE). ⚠️ Layers are machine-interpreted — a machine with no step data has no ALT layer |
 | Envelopes | Volume-modulating envelopes use a **CC7 ramp**; ratchets are repeated note-ons |
 | MIDI clock | Forwarded — 0xF8/0xFA/0xFC to DIN and internal synths, 1:1 from the 24 PPQN input |
 | Message order | Program change → CC → note-on |
-| Step display | Steps past `lastStep` are not lit |
+| Step display | Unlit past the channel length, **white** within it and inactive, **yellow** when active |
 | MIDI IN | Note entry only — notes, length, velocity. Not a clock source, not a thru |
 | DIN OUT A/B | Duplicated output for patching convenience — one logical port, one UART |
 | USB MIDI | **Host only**, for internally mounted synths (Behringer K-2, PRO-800, + spare). No panel socket; external gear uses DIN |
@@ -555,15 +737,28 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 | Part storage | **Local SD card** on this module. Master sends song index, part index and transport only |
 | Control link | **Asynchronous serial + ground** to the Song Manager *(2026-10-03)*. Not on Case 1's I2C bus; address 11 moot. Both ends Teensy 4.1 at 3.3 V, so no level shifting. ⚠️ Protocol unspecified |
 | Programming | Song Manager's serial CLI **extended to program this module across the link** (a `CliCommand` equivalent) |
-| Trigger conditions | Ratio `n:m` (m = 1–8), probability 0–100 %, and first/last 1–3 occurrences — 143 values, fits one byte |
-| Divider | Mathematically consistent doubling: 1 = 1/16 … 32 = 2/1 |
+| Trigger conditions | **Ratio `1.m` (m = 1–8)** and first/last 1–3 occurrences — 14 values. **Probability removed** 2026-10-05: nothing in this module plays at random |
+| Divider | Mathematically consistent doubling: 1 = 1/16 … 32 = 2/1. ✅ The manual was corrected to match 2026-10-05 |
 | Envelope span | One step interval (divider-dependent), not a literal 16th |
 | Volume envelope | CC7 ramp, **10 points per step**, envelope wins over a step's own CC7 slot |
 | ALT layer | Momentary — active only while the step button is held |
-| Step button | Press activates / deactivates the step. Inactive steps send nothing but retain their parameters |
+| Step button | Press activates / deactivates the step and sets NOTE 1 to A3. Long-press then press another step **copies** it. Inactive steps send nothing but retain their parameters |
 | Note display | Letter + octave, decimal point = sharp |
 | Disabled track | Advances silently, stays in phase |
 | Panel SVG | Complete as drawn — no USB cutout needed |
+| Source of truth | ⚠️ The **[user manual](16-channel-sequencer-user-manual.md)** as of 2026-10-05. This document is the implementation spec beneath it |
+| Machines | **Ratified** — five machines: sequencer, chord, drone, arpeggio, drum. Each owns grid geometry, encoder meaning and display formatting |
+| Mode LED | **Colour = machine, blink = edit mode.** Sequencer is yellow; red is no longer reserved for editing |
+| Channel length | Track LENGTH **is** `lastStep` — 1–128, set on the LENGTH encoder under green-hold |
+| MIDI channel default | Channel *n* → MIDI channel *n*, editable per channel |
+| CC7 | **Reserved outright** by the envelope — a step's CC slot targeting CC7 is ignored |
+| Step overlap | A long step suppresses following active steps' note-ons; their CCs and program change still send |
+| Step reset | Long-press the **NOTE 1 encoder** to return a step to defaults |
+| Scales | **Four first** — `CHr` `PMa` `PMI` `BLU` — then more. Pinned until the first four work |
+| Fractional gates | **Retained**, `0.1`–`0.9` of a step interval. This is what makes the scheduler time-based rather than pulse-counting |
+| Drum lanes | 8 lanes × 16, up to 64 steps each. **A lane's settings are its first step's**, via long-press on the lane head. `divider` channel-wide |
+| Arpeggio pattern | On the **ENV encoder** — direction pattern and octave range in one predefined value. No channel pattern field |
+| Machine selection | **Green held + yellow pressed** — each press cycles to the next machine, the LED previews its colour, release of green creates it |
 
 ## Open Questions
 
@@ -577,7 +772,32 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 6. ⚠️ **Where Case 2's clock comes from.** This module's CLOCK IN expects 24 PPQN, and it **must not be patched from Case 1's Tempo module** — a patch cable bonds the two chassis through the most timing-sensitive input in the module. So either clock rides the serial link, or Case 2 gets a local source. A hardware question with a firmware consequence; it is tracked in [`inter-case-interconnect.md`](inter-case-interconnect.md#open-items) open item 5.
 7. **Encoder step size and coarse/fine** — velocity scaling or push-and-turn. A UI decision; see the Step-Parameter Section above. The electrical side is settled.
 8. ⚠️ **Transposition is referenced but undefined.** The scale note says the scale "is also applied when transposing the sequence", but no control, gesture or link instruction for transposing exists. Per-track or per-part? From the panel or from the Song Manager?
-9. ⚠️ **Scale display codes are unrenderable on 7-segment** — 8 of 14 contain M, W or X, and three pairs differ only by the case of M. Needs reassigning before the editor is written. See [Scale](#scale).
+9. ⚠️ **Scale display codes — deferred with the scale set.** Only four scales are being built first and all four codes render, so this does not bite today. It returns the moment the set grows: eight of the ten deferred codes contain **M**, **W** or **X**, and `PMa`/`PMI` already differ only by a case a 7-segment digit cannot show. Cheaper to fix at four than at fourteen. See [Scale](#scale).
 10. **When the scale lock is applied** — at note entry (destructive) or at playback (non-destructive), and the snap direction. See [Scale](#scale).
-11. **What track-level LENGTH is** — the same value as `lastStep`, or something else. See the Step-Parameter Section.
-12. **VOLUME's 0–127 range on a 2-digit window.** See [Volume](#volume).
+11. ✅ **What track-level LENGTH is — answered: it *is* `lastStep`**, 1–128, on the LENGTH encoder under green-hold.
+12. **VOLUME's 0–127 range on a 2-digit window.** The manual does not address it. See [Volume](#volume).
+
+### Raised by the move to the user manual as source of truth, and answered *(2026-10-05)*
+
+| # | Question | Resolution |
+|---|---|---|
+| 13 | Does realtime-edit survive? | ✅ **Yes** — omitted from the manual by oversight; the human will add it. ⚠️ *But* its gesture and its LED state are both unassigned — see below |
+| 14 | Does green-hold + step still set the length? | ✅ **Yes**, on every machine that has a step count. The drone ignores it |
+| 15 | Are fractional gate lengths dropped? | ✅ **No** — retained, `0.1`–`0.9`. The manual's omission was an oversight and is corrected there |
+| 16 | The divider table skips the half note | ✅ **Corrected in the manual** — `8 → 1/2`, `16 → 1/1`, `32 → 2/1` |
+| 17 | Envelope display codes | ✅ **`R43` was a typo for `Ra4`**, corrected in the manual. Codes are `Gat` `SaV` `Ra2` `Ra3` `Ra4` |
+| 18 | Is the probability trigger family dropped? | ✅ **Yes, removed** — nothing in this module decides what to play at random |
+| 19 | Four scales or fourteen? | ✅ **Four first, more later — pinned** until the first four work |
+| 20 | Drum per-lane fields have nowhere to live | ✅ **No new fields.** A lane's settings *are* its first step's, reached by long-pressing the lane head. `divider` stays channel-wide |
+| 21 | The arpeggio pattern has two homes | ✅ **The ENV encoder owns it** — pattern *and* octave range, from a predefined list. There is no channel pattern field |
+| 22 | The manual's button names are inconsistent | Still worth settling in the manual — "channel config-button" vs "channel edit-button" |
+
+### Remaining, after that pass
+
+23. ⚠️ **Realtime-edit has neither a gesture nor an LED state.** Colour now carries the machine and blink carries "editing", so the two edit modes can only differ by blink rate or duty. And the manual's single-press/long-press are spent on save and discard, leaving nothing to switch between them. Both need deciding before the editor is written. See [Modes](#modes).
+24. **Only the `1.m` row of the ratio trigger grid is defined** — `1.1`–`1.8`, "one pass in every *m*". Whether `2.3`-style conditions ("the 2nd pass of every 3") exist is unstated. See [Trigger](#trigger).
+25. ✅ **How a channel's machine is selected — answered: green held + yellow pressed**, cycling colours, committed on green release. See [Selecting a Channel's Machine](#selecting-a-channels-machine). Two follow-ons remain: the **cycle order**, and the two unassigned colours (OQ 28).
+26. **Drum lane paging** — the manual's own `TBD`: a lane of up to 64 steps needs a way to reach pages 2–4, and nothing on the panel is assigned to it.
+27. **The arpeggio pattern list** — the manual's `TBD`, "the usual suspects". Each entry sets both a direction pattern and an octave range (`ud1` = up-down, one octave).
+28. ⚠️ **Two machine colours are unassigned, and the select gesture now depends on them.** Chord held YELLOW, which the sequencer now owns; arpeggio has none. Known: sequencer **yellow**, drone **green**, drum **blue**. The MAX7219's palette is 7 on/off colours — red, green, blue, yellow, magenta, cyan, white — so five distinct machine colours do fit, and red is free again now that it no longer marks edit mode. But the mixed colours share one current setting across the three dies, so the two new ones want picking against the brightness-trim table rather than on paper. The **cycle order** for green-hold + yellow needs fixing at the same time.
+29. ⚠️ **The drone's gate phase on re-enable.** Enabling mid-run either restarts its 16-column bar or picks up the running counter; the module's general in-phase rule points one way and the drone section the other. See [machines doc](16-channel-sequencer-machines.md#drone-machine).
