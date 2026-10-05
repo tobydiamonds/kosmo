@@ -7,21 +7,14 @@ Also, make sure that you have at least one external device connected via either 
 Sequencer channels are by default mapped to separate midi channels so sequencer channel 1 sends and receives midi messages on midi channel 1. Sequencer channel 2 send and receive on midi channel 2 etc.
 
 ## Your first sequence.
-Power on the device and ensure the external clock is connected to clock-in and that the external device is listening on midi channel 1.
-
-Long press the yellow button for channel 1 (channel select-button). This selects the channel and set it in program mode. Since the default machine is **Sequencer** the LED is yellow (other machines has other colors) and because you are in programming mode, the led is blinking.
-
-Press the green button (channel config-button) to enable channel sending output.
-
-In the step rows the first 16 steps are lit in white indicating that the sequence length is set to 16 and that there are not active steps.
-
-Press any of the step buttons. They will shift from white to yellow to indicate that they are active/will create sound when the clocked step reaches the step in the sequence.
-
-Long press the channel select-button to exit programming mode.
-
-When you start the clock, midi notes will be sent to the external midi device.
-
-If you stay in programming mode, you can modify the sequence while it is playing.
+1. Power on the device and ensure the external clock is connected to clock-in and that the external device is listening on midi channel 1.
+2. Long press the yellow button for channel 1 (channel select-button). This selects the channel and set it in program mode. Since the default machine is **Sequencer** the LED is yellow (other machines has other colors) and because you are in programming mode, the led is blinking.
+3. Press the green button (channel config-button) to enable channel sending output.
+4. In the step rows the first 16 steps are lit in white indicating that the sequence length is set to 16 and that there are no active steps.
+5. Press any of the step buttons. They will shift from white to yellow to indicate that they are active/will create sound when the clocked step reaches the step in the sequence.
+6. Long press the channel select-button to exit programming mode. The LED is solid yellow.
+7. When you start the clock, midi notes will be sent to the external midi device.
+8. If you stay in programming mode, you can modify the sequence while it is playing.
 
 ## Changing the sequence
 Changes are only possible while the channel is in edit mode. Press and hold the channel select-button until the LED starts to blink.
