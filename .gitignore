@@ -8,10 +8,15 @@ kosmo drum sequencer/uno/kosmo-5ch-drum-sequencer/
 kosmo 5 channel sampler/uno/kosmo-5ch-sampler/
 kosmo tempo/kosmo tempo firmware/kosmo-tempo/
 kosmo-web-ui/
+kosmo 16 channel sequencer/
 
 # KiCad local history (embedded git repos)
 kosmo nts-1 multieffects/pcb/kosmo-nts1-multieffects/.history/
 kosmo song manager/kosmo song manager 595 channel board/.history/
+
+# KiCad generated outputs (regenerable from the project)
+export/
+*-backups/
 
 # Node.js (test dependencies)
 node_modules/
