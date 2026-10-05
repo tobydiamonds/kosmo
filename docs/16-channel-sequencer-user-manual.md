@@ -173,5 +173,43 @@ Default channel divider is 4 (every step is a 1/4 note).
 ## Drone
 
 ## Arpeggio
+The arpegiator machine uses the ENV to decide patterns. The list of patterns have not yet been defined, but it will have the useual suspects.
+
+The 4 notes and the scale will be the foundation of which notes to be in the arpeggio.
+
+Example:
+Channel Scale = Pentatonic Minor
+Channel Divider = 1 (1/16 notes)
+Channel Length = 16
+Channel Pattern = ud1 (up-down-1-octave)
+Step 1 Note 1 = C3
+This will automatically fill note2-16 as follows
+| Step | Note |
+|------|------|
+| 2 | d#3 |
+| 3 | f3 |
+| 4 | g3 |
+| 5 | a#3 |
+| 6 | g3 |
+| 7 | f3 |
+| 8 | d#3 |
+| 9 | c3 |
+| 10 | d#3 |
+| 11 | f3 |
+| 12 | g3 |
+| 13 | a#3 |
+| 14 | g3 |
+| 15 | f3 |
+| 16 | d#3 |
+
 
 ## Drum
+The drum machine arranges the channel in 8 individual tracks where Note 1 defines how the track maps to the external midi device.
+
+Step 1, 17, 33, 49, 65, 81, 97 and 113 acts as track edit buttons as well as the first step in each track. Long pressing enables the following
+Set track length - min 1 max 64 steps
+Set track volume (backed into the individual midi note on messages)
+Set CCs
+Set Trigger
+
+We need some way to page through the pages (1-4) if any track has a length longer than 16. TBD

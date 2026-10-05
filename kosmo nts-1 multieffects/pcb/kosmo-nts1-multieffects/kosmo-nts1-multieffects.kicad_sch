@@ -15706,10 +15706,9 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "5af56da6-3920-41a4-9207-38e3e284a84d")
 		(property "Reference" "C12"
-			(at 391.16 53.34 0)
+			(at 391.16 50.8 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -19654,10 +19653,9 @@
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "c6110bfc-91b6-4dcc-b9dc-ebd79d50f9d0")
 		(property "Reference" "C1"
-			(at 382.27 53.34 0)
+			(at 382.016 51.562 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects

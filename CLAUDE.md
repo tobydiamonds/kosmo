@@ -2,19 +2,46 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Ways of Working — read this first
+
+**The human plans, the machine executes, the human validates.** The human is accountable for the outcome. Full description and the status vocabulary: `docs/ways-of-working.md`.
+
+What this means in practice when working in this repo:
+
+1. **Read the module's functional doc before changing code.** It is the plan of record.
+2. **Do not invent decisions.** If the plan is silent on something that must be settled, implement the smallest thing that satisfies the plan, record the gap as an open question in the doc, and say so in the report. Never fill a planning gap with a confident guess — once it is in the code it is indistinguishable from a specified behavior.
+3. **Do not silently resolve contradictions** between a doc and the code/schematic. Surface them.
+4. **Verified artifacts beat stated intentions.** If a netlist, an `.ino` or the bench disagrees with a doc, the artifact is the fact — record it as such and flag the difference.
+5. **Report what was assumed and what was not verified**, not just what was done.
+6. **Update the docs in the same pass** as the change.
+7. **Stay in scope.** Propose adjacent improvements; don't perform them.
+8. **Nothing is "complete" until the human has validated it on hardware.** Use the status vocabulary: Planned / In progress / Executed — awaiting validation / Validated / Blocked.
+
 ## Project Overview
 
 Kosmo is a collection of modular synthesizer firmware projects. Multiple microcontrollers communicate over I2C in a master-slave architecture to form a complete music sequencing system.
+
+**The system is two cases** (as of 2026-10-03):
+
+- **Case 1 — built and playing.** Song Manager (master), Tempo/Clock, Drum Sequencer, Sampler, and **1 of 3** NTS-1 multieffects modules. Internal I2C bus. ⚠️ Has an unresolved audio hum that appears when the multieffects module is in use.
+- **Case 2 — in assembly.** 16-Channel MIDI Sequencer plus 3 rack-mounted synths. Front panel assembly in progress, most components sourced, PCBs ordered, **no firmware written**. The software architecture is being planned by the human.
+- **The two cases are linked by asynchronous serial + ground**, Song Manager (Teensy 4.1) → 16-Channel Sequencer (Teensy 4.1). ⚠️ The **protocol is not specified** and the **Case 1 end is not fitted**. No audio and no patch cable crosses between the cases.
+- **No further modules are planned** in the near future.
 
 ## Functional Documentation
 
 The `docs/` directory contains the canonical functional specification for each module. **Always read the relevant module doc before making code changes** — it defines the intended behavior that code must implement.
 
-- `docs/README.md` — System overview and module index
+- `docs/ways-of-working.md` — **Plan / execute / validate model, status vocabulary**
+- `docs/README.md` — System overview, project status, and module index
 - `docs/song-manager.md` — Song Manager (modes, playback, programming, I2C protocol)
 - `docs/drum-sequencer.md` — Drum Sequencer (step patterns, clock, triggers, dividers)
 - `docs/tempo.md` — Tempo/Clock (BPM generation, morphing, tap tempo, MIDI clock)
 - `docs/sampler.md` — 5-Channel Sampler (Uno + Pi architecture, banks, mix levels)
+- `docs/16-channel-sequencer.md` — 16-Channel MIDI Sequencer (Case 2 — tracks, steps, modes, control link)
+- `docs/16-channel-sequencer-hardware.md` — 16-Channel Sequencer electrical architecture and bring-up checklist
+- `docs/16-channel-sequencer-machines.md` — 16-Channel Sequencer machines: shell/machine split, input ownership, per-machine input semantics
+- `docs/inter-case-interconnect.md` — The two-case split, the serial link decision, isolation rules
 - `docs/power-distribution.md` — Mains inlet (AC-01 fused IEC + switch), fusing, wiring, 5V rail
 
 ## Build & Upload
@@ -25,6 +52,8 @@ These are Arduino IDE projects (`.ino` files). There is no CLI build system — 
 - **Drum Sequencer (slave)**: Arduino Mega — `kosmo drum sequencer/uno/kosmo-5ch-drum-sequencer/kosmo-5ch-drum-sequencer.ino`
 - **Tempo/Clock (slave)**: `kosmo tempo/kosmo tempo firmware/kosmo-tempo/kosmo-tempo.ino`
 - **5-Channel Sampler (slave)**: Arduino Uno — `kosmo 5 channel sampler/uno/kosmo-5ch-sampler/kosmo-5ch-sampler.ino`
+- **NTS-1 Multieffects (slave)**: Arduino Nano — `kosmo nts-1 multieffects/`
+- **16-Channel MIDI Sequencer (Case 2)**: Teensy 4.1 — **not started**; `kosmo 16 channel sequencer/firmware/` is empty. No git repo yet. KiCad projects are in `kosmo 16 channel sequencer/hardware/`
 
 ## Git Repositories
 
@@ -36,6 +65,7 @@ Each module has its own git repo inside the firmware directory:
 | Drum Sequencer | `kosmo drum sequencer/uno/kosmo-5ch-drum-sequencer/` | `tobydiamonds/kosmo-5-channel-drum-sequencer` (branch: master) |
 | Sampler | `kosmo 5 channel sampler/uno/kosmo-5ch-sampler/` | `tobydiamonds/kosmo.uno.5-channel-sampler` (branch: master) |
 | Tempo | `kosmo tempo/kosmo tempo firmware/kosmo-tempo/` | `tobydiamonds/kosmo.uno.tempo` (branch: master) |
+| 16-Channel Sequencer | — *(no repo yet; firmware not started)* | — |
 
 Required libraries: Wire (I2C), SD (SD card on Teensy), standard Arduino libraries.
 
@@ -122,7 +152,9 @@ Each slave uses `KosmoSlaveI2CService` (or `I2CSlave`) to receive instructions. 
                                    (patch cable)
 ```
 
-- **Song Manager** (Teensy 4.1, 3.3V logic): I2C master. Connects to General Bus via 3.3V side of level shifters.
+**The diagram above is Case 1 only.** Case 2 (16-Channel MIDI Sequencer + 3 synths) hangs off the Song Manager over a **serial link + ground**, not over I2C — the inter-case run would exceed I2C's capacitance budget, and 50 Hz ground offset would eat its ~1.1 V of single-ended margin. ⚠️ Case 1 has no serial hardware fitted yet, and the protocol is unspecified. Case 2's main board uses **Teensy pins 16/17**, which are Wire1 *and* Serial4, so the same pair serves either protocol. See `docs/inter-case-interconnect.md`.
+
+- **Song Manager** (Teensy 4.1, 3.3V logic): I2C master. Connects to General Bus via 3.3V side of level shifters. **Serial4 (pins 16/17) is free** for the inter-case link.
 - **General Bus**: Distributes 5V power and I2C (5V side) to all slave modules. Level shifters bridge Teensy 3.3V ↔ slave 5V I2C.
 - **Tempo Module**: Generates clock. Clock output patched via front panel cable to Song Manager and Drum Sequencer clock inputs.
 - **Drum Sequencer**: Receives clock from Tempo via patch cable. Advances steps on clock pulses.

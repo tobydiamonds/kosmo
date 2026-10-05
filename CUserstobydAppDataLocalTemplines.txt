@@ -1,0 +1,157 @@
+27:			(property "Value" "74HC14"
+631:			(property "Value" "Conn_01x02_Pin"
+812:			(property "Value" "Conn_01x03_Pin"
+1034:			(property "Value" "Conn_01x05_Pin"
+1338:			(property "Value" "Conn_02x10_Counter_Clockwise"
+2021:			(property "Value" "C"
+2176:			(property "Value" "C_Polarized"
+2352:			(property "Value" "R"
+2492:			(property "Value" "1N4148"
+2677:			(property "Value" "6N138"
+3182:			(property "Value" "GND"
+3297:			(property "Value" "VSS"
+3418:			(property "Value" "Teensy4.1"
+11137:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+11139:		(unit 1)
+11158:		(property "Value" "STEP-SETTINGS"
+11265:					(unit 1)
+11271:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+11273:		(unit 1)
+11292:		(property "Value" "ROW5"
+11399:					(unit 1)
+11405:		(lib_id "Device:R")
+11407:		(unit 1)
+11426:		(property "Value" "10K"
+11479:					(unit 1)
+11485:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+11487:		(unit 1)
+11506:		(property "Value" "ROW4"
+11613:					(unit 1)
+11619:		(lib_id "Device:C_Polarized")
+11621:		(unit 1)
+11641:		(property "Value" "10uF"
+11695:					(unit 1)
+11701:		(lib_id "Connector:Conn_01x02_Pin")
+11703:		(unit 1)
+11722:		(property "Value" "MIDI-IN"
+11776:					(unit 1)
+11782:		(lib_id "Isolator:6N138")
+11784:		(unit 1)
+11803:		(property "Value" "6N138"
+11874:					(unit 1)
+11880:		(lib_id "Device:R")
+11882:		(unit 1)
+11901:		(property "Value" "220"
+11954:					(unit 1)
+11960:		(lib_id "Connector:Conn_01x03_Pin")
+11962:		(unit 1)
+11981:		(property "Value" "MIDI-OUT-1"
+12038:					(unit 1)
+12044:		(lib_id "power:GND")
+12046:		(unit 1)
+12066:		(property "Value" "GND"
+12116:					(unit 1)
+12122:		(lib_id "teensy:Teensy4.1")
+12124:		(unit 1)
+12143:		(property "Value" "Teensy4.1"
+12391:					(unit 1)
+12397:		(lib_id "power:GND")
+12399:		(unit 1)
+12419:		(property "Value" "GND"
+12469:					(unit 1)
+12475:		(lib_id "Diode:1N4148")
+12477:		(unit 1)
+12496:		(property "Value" "1N4148"
+12571:					(unit 1)
+12577:		(lib_id "Connector:Conn_01x02_Pin")
+12579:		(unit 1)
+12598:		(property "Value" "CLOCK-OUT"
+12652:					(unit 1)
+12658:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+12660:		(unit 1)
+12679:		(property "Value" "ROW1"
+12786:					(unit 1)
+12792:		(lib_id "power:GND")
+12794:		(unit 1)
+12814:		(property "Value" "GND"
+12864:					(unit 1)
+12870:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+12872:		(unit 1)
+12891:		(property "Value" "ROW2"
+12998:					(unit 1)
+13004:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+13006:		(unit 1)
+13025:		(property "Value" "ROW9"
+13132:					(unit 1)
+13138:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+13140:		(unit 1)
+13159:		(property "Value" "ROW8"
+13266:					(unit 1)
+13272:		(lib_id "Connector:Conn_01x03_Pin")
+13274:		(unit 1)
+13293:		(property "Value" "MIDI-OUT-2"
+13350:					(unit 1)
+13356:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+13358:		(unit 1)
+13377:		(property "Value" "ROW6"
+13484:					(unit 1)
+13490:		(lib_id "power:VSS")
+13492:		(unit 1)
+13512:		(property "Value" "VSS"
+13562:					(unit 1)
+13568:		(lib_id "Device:R")
+13570:		(unit 1)
+13589:		(property "Value" "220"
+13642:					(unit 1)
+13648:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+13650:		(unit 1)
+13669:		(property "Value" "ROW7"
+13776:					(unit 1)
+13782:		(lib_id "Device:R")
+13784:		(unit 1)
+13803:		(property "Value" "220"
+13856:					(unit 1)
+13862:		(lib_id "Device:R")
+13864:		(unit 1)
+13883:		(property "Value" "1K"
+13936:					(unit 1)
+13942:		(lib_id "Diode:1N4148")
+13944:		(unit 1)
+13963:		(property "Value" "1N4148"
+14038:					(unit 1)
+14044:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+14046:		(unit 1)
+14065:		(property "Value" "ROW3"
+14172:					(unit 1)
+14178:		(lib_id "Connector_Generic:Conn_02x10_Counter_Clockwise")
+14180:		(unit 1)
+14199:		(property "Value" "ROW10"
+14306:					(unit 1)
+14312:		(lib_id "Connector:Conn_01x05_Pin")
+14314:		(unit 1)
+14333:		(property "Value" "EXTERNAL BUS"
+14395:					(unit 1)
+14401:		(lib_id "74xx:74HC14")
+14403:		(unit 2)
+14422:		(property "Value" "74HC14"
+14510:					(reference "U12")
+14511:					(unit 2)
+14517:		(lib_id "74xx:74HC14")
+14519:		(unit 4)
+14538:		(property "Value" "74HC14"
+14626:					(reference "U12")
+14627:					(unit 4)
+14633:		(lib_id "74xx:74HC14")
+14635:		(unit 1)
+14654:		(property "Value" "74HC14"
+14742:					(reference "U12")
+14743:					(unit 1)
+14749:		(lib_id "74xx:74HC14")
+14751:		(unit 3)
+14770:		(property "Value" "74HC14"
+14858:					(reference "U12")
+14859:					(unit 3)
+14865:		(lib_id "Device:C")
+14867:		(unit 1)
+14887:		(property "Value" "100nF"
+14941:					(unit 1)
