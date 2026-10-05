@@ -18,5 +18,8 @@ kosmo song manager/kosmo song manager 595 channel board/.history/
 export/
 *-backups/
 
+# KiCad stale editor lock files
+*.lck
+
 # Node.js (test dependencies)
 node_modules/
