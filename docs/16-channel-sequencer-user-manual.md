@@ -6,7 +6,7 @@ Also, make sure that you have at least one external device connected via either 
 
 Sequencer channels are by default mapped to separate midi channels so sequencer channel 1 sends and receives midi messages on midi channel 1. Sequencer channel 2 send and receive on midi channel 2 etc.
 
-## Your first sequence.
+## Your first sequence
 1. Power on the device and ensure the external clock is connected to clock-in and that the external device is listening on midi channel 1.
 2. Long press the yellow button for channel 1 (channel select-button). This selects the channel and set it in program mode. Since the default machine is **Sequencer** the LED is yellow (other machines has other colors) and because you are in programming mode, the led is blinking.
 3. Press the green button (channel config-button) to enable channel sending output.
@@ -120,8 +120,38 @@ Chord machine: Single note transposes the root note and uses the channel scale t
 # Machines
 
 ## Sequencer
+| Step parameter | What it does | Comments |
+|----------------|--------------|----------|
+| Note 1 | Define the note to play | |
+| Note 2 | Define the note to play with note 1 | |
+| Note 3 | Define the note to play with note 1 and 2 | |
+| Note 4 | Define the note to play with note 1, 2 and 3 | |
+| Length | Sets the length of the note | (see above ) |
+| Volume | Sets the volume of the note | (see above) |
+| CC1 | Define which CC to sent | |
+| CC2 | Define which CC to sent | |
+| CC3 | Define which CC to sent | |
+| ENV | Defines the envelope of the note(s) volume | (see above) |
+| Program | Defines which program change to send | (see above )|
+| Trigger | Defines when to send the midi messages | (see above) |
+
+| Channel parameter | What it does | Comments |
+|-------------------|--------------|----------|
+| Divider | Defines the tempo with which the step advances | (see above) |
+| Length | Defines the length of the sequence | |
+| Volume | Defines the maximum volume of notes in the sequence | |
+| Scale | Defines the notes that can be in a sequence | |
+
 
 ## Chord
+Default channel divider is 4 (every step is a 1/4 note).
+
+| Step parameter | What it does | Comments |
+|----------------|--------------|----------|
+| Note 1 | Define the root note. Scale determines the next 2 notes of the base chord | |
+| Note 2 | Define the 4th note (1-48) relative to the root and scale | |
+| Note 3 | Define the 5th note (1-48) relative to root and scale | |
+| Note 4 | Define a bass note, 1-3 octaves below the root| |
 
 ## Drone
 
