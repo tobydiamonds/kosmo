@@ -1,6 +1,9 @@
 # Kosmo 16 channel midi sequencer user manual
 The Kosmo 16 channel midi sequencer allows you to program sequences, chords, drones, drum machines etc in 16 individual channels. Each channel has a specific machine attached to it, the allows for specific behaviors.
 
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/46affeb4-1ce6-47f8-8de6-8da6acbe8301" />
+
+## Getting started
 To get started you must connect an external clock source. The Kosmo 16 channel midi sequencer expected clock signal with 24ppqn.
 Also, make sure that you have at least one external device connected via either midi or USB.
 
@@ -81,6 +84,9 @@ When in edit mode you can save changes by pressing the channel select-button. To
 Each channel can be toggled on or off where off effectively prevents midi messages to be sent and there by muting any external devices on that midi channel. This happens when pressing the channel edit-button. A channel can be toggled on or off without it being selected.
 
 Other channel settings are accessed by pressing and holding the channel edit button while changing the parameters.
+
+### MIDI Channel
+Determines the midi channel on which the channel send and receive midi messages. The default is channel 1 => MIDI channel 1, channel 2 => MIDI channel 2 etc.
 
 ### Channel divider
 Determines the tempo the channel advances one step.
