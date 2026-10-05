@@ -271,3 +271,12 @@ Set CCs
 Set Trigger
 
 We need some way to page through the pages (1-4) if any track has a length longer than 16. TBD
+
+# Song Manager integration
+When connected to the Song Manager module (hosted in a seperate case) the 16 channel midi sequencer must be able to
+- Load data for a requested song. The 16 channel midi sequencer stores it data on local SD card. Songs are numbered 1-99.
+- Save data for the current song.
+- Have 16 parts all consisting of 16 channels.
+- Load a specified part
+- Play a specified part
+... this is simular to Kosmo modules connected via I2C, however the connection between Song Manager and 16 channel midi sequencer is serial comm and can be shiftet to CAN BUS when/if more cases are added to the system.
