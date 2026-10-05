@@ -186,6 +186,7 @@ Step 1 Note 1 = C3
 This will automatically fill note2-16 as follows
 | Step | Note |
 |------|------|
+| 1 | c3 |
 | 2 | d#3 |
 | 3 | f3 |
 | 4 | g3 |

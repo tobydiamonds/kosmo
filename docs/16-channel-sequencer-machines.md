@@ -15,7 +15,7 @@ Companion to [16-channel-sequencer.md](16-channel-sequencer.md) (behaviour) and
 | Sequencer machine | Step gestures **settled** (inherited from the main doc); encoder map proposed |
 | Chord machine | Note semantics **settled**; everything else undefined |
 | Drum machine | **Undefined** — `tbd` on the board |
-| Drone machine | **Undefined** — named only |
+| Drone machine | **In progress** — notes, scale lock, gate pattern, sine CC modulators, row map, colour GREEN and timing specified 2026-10-05; ⚠️ re-enable phase and green-hold reachability contradict the main doc |
 | Firmware | **Not started** |
 
 ⚠️ **This document introduces a concept the main doc does not have.** The main doc specifies three
@@ -329,14 +329,124 @@ multiplies the open questions, since every per-track field has to be decided per
 
 ### Drone machine
 
-**Undefined — named only, no note on the board.** The questions that have to be answered before it
-can have a descriptor:
+**Specified 2026-10-05.** Four held notes, a gate pattern and three sine CC modulators — and no step
+sequence. The part-level idea follows The NDLR's Drone (three parameters and a cadence, no steps at
+all); the grid use below is this module's own.
 
-- Does it have steps at all? If not, what do the 128 grid buttons and LEDs do?
-- Does it use `divider` or `lastStep`? If neither, precedence rule 1 (green + step = last step) has
-  no meaning on this machine.
-- Does `pulse()` do anything, or is it driven entirely by gesture?
-- Does it support step-edit and realtime-edit modes, or only play?
+| | |
+|---|---|
+| Colour | **GREEN** |
+| Grid | **Machine-owned, three row classes** — see below. Not a step line |
+| Steps | None. The 16 columns are a bar, not editable steps |
+| Track fields used | divider (**scales every period**), volume, scale, midiChannel, midiPort. **Not** `lastStep` |
+| ALT layer | **Unused** — no per-step settings exist on this machine |
+
+✅ **GREEN is producible and distinct.** It is clear of red (edit mode), yellow (play mode, and the
+chord machine) and blue (drum machine) — see [Collisions](#collisions-with-the-plan-of-record) #2.
+⚠️ But green is also what the **State LED** on the adjacent green button means — *track enabled* — so
+a green mode LED and a green state LED sit side by side meaning different things.
+
+**Notes — NOTE 1–4 are four free MIDI notes**, held together as a tone-cluster. ✅ All four windows
+use the ordinary letter + octave format, so the chord machine's mis-rendering hazard does not arise
+here. ✅ **The four notes are locked to the channel scale**, which is the main doc's default for every
+machine rather than an exception for this one.
+
+**Every setting is channel-scoped.** This machine has no per-step parameters at all, which has three
+consequences for the generic layer:
+
+- The base encoder layer edits **the channel**, not a selected step. ⚠️ The descriptor comments its
+  `base` array as "selected step" — that is the sequencer machine's reading, not a general one.
+- `alt` is null, and **precedence rule 3** (long-press reached → machine opens the ALT layer) has no
+  target here.
+- There is no step *selection*, so a press on the grid only ever edits the row it is in.
+
+✅ **An edit mode is required to change any setting.** Nothing on this machine is editable from play
+mode.
+
+**Triggering is enable-relative, not bar-relative.**
+
+- Note-on is sent when the **channel is enabled**, irrespective of where any other channel sits in
+  its own pattern.
+- A drone already enabled when the transport starts sounds with everything else from the first pulse.
+
+✅ **Timing is clock-derived off the rising edge**, in common with every other machine, so the shell
+owes this machine no enable event: it samples `enabled` on the incoming 24 PPQN and acts on the first
+pulse at which it observes the channel enabled.
+
+⚠️ **The gate phase on re-enable is specified two ways and they disagree.** "The pattern is started
+when the channel is enabled" (this section) resets the phase at enable. But the main doc's general
+rule is that **a disabled track keeps advancing its step counter and sends no MIDI, so re-enabling it
+returns in phase rather than from step 1** — see
+[Green Button](16-channel-sequencer.md#green-button--track-enable--track-parameters). "Phase as for
+the other machines" selects the second, which contradicts the first. ❓ Which applies to the drone:
+does enabling mid-run restart its 16-column bar, or drop into whatever column the counter has
+reached? Phase handling is machine-owned, so either is implementable; only one is specified.
+
+#### Grid rows
+
+| Row | Meaning | Default | Interaction |
+|---|---|---|---|
+| 1 | **Gate pattern** | All 16 active | Free mask — a press toggles that column |
+| 2–5 | Dark, no function yet | — | Inert |
+| 6 | CC1 modulation speed | ❓ | Fill-to-the-left bar |
+| 7 | CC2 modulation speed | ❓ | " |
+| 8 | CC3 modulation speed | ❓ | " |
+
+Rows 2–5 being dark keeps the gate row and the modulation bars non-adjacent, so the two press
+behaviours are never side by side.
+
+**Row 1 — the gate. Transitions, not steps.** The 16 columns advance at the **channel divider**, one
+bar of 16 per divider period.
+
+| Column transition | MIDI emitted |
+|---|---|
+| inactive → active | Note-on |
+| active → active | **Nothing** — successive active columns do not retrigger |
+| active → inactive | Note-off |
+
+✅ **The default is a pure sustained drone.** All 16 columns active means one note-on at enable and
+no further note messages until disable, so the ordinary drone case costs no MIDI traffic at all.
+
+**Rows 6–8 — modulation speed as a bar.** Pressing column *n* lights 1..*n*, and the value is the
+fill level, 0–16. Column 1 carries a second meaning: when it is the only one lit, pressing it clears
+the row to **0 — no modulation**. Reaching 0 from a higher value therefore takes two presses.
+
+**Why fill-to-the-left rather than a free mask.** The value is the count of lit columns, so a free
+mask would make "column 5 alone" and "column 1 alone" the same state while looking different — which
+reads as a fault rather than a mapping choice. A bar has no duplicate or unreachable states.
+
+**The modulator is a sine**, running from 0 up to the value set on that CC's encoder. The encoder
+keeps its panel meaning — CC number and value — and that value becomes the top of the sweep.
+
+**Speed is cycles per divider period**, so the bar reads directly as a frequency:
+
+| Bar fill | Rate |
+|---|---|
+| 0 | No modulation — the CC is not sent |
+| 1 | One cycle per divider period |
+| *n* | *n* cycles per divider period |
+| 16 | Sixteen cycles per divider period |
+
+**Period scales with `divider`.** Long drone parts are the normal case, so this machine claims
+divider, and it sets the period of the gate pattern and all three modulators together.
+
+#### Gestures this machine does not use
+
+| Gesture | On this machine |
+|---|---|
+| Green + step press | **Nothing.** Precedence rule 1 sets `lastStep`, which this machine does not use |
+| Black long-press | **Nothing** — there is no ALT layer |
+
+⚠️ **"Green long-press has no functionality here" cannot be taken at face value.** On the panel,
+**green held *is* the track layer** — the gesture that reaches DIVIDER, LENGTH, VOLUME and SCALE
+(main doc, [Parameter Layers](16-channel-sequencer.md#parameter-layers--scope-rule)). This machine
+claims **divider, volume and scale**, so if green-hold does nothing, those three have no control on
+the panel at all. ❓ The reading that keeps the machine workable is that *green + step* does nothing
+while *green held* still opens the track layer — confirm, because the alternative leaves the drone's
+period, level and note lock unreachable.
+
+❓ **Still open:** whether realtime-edit is distinct from step-edit on this machine, given there are
+no per-step settings to record into.
 
 ---
 
