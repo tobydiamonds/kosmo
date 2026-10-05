@@ -22,7 +22,7 @@ Sequencer channels are by default mapped to separate midi channels so sequencer 
 8. If you stay in programming mode, you can modify the sequence while it is playing.
 
 ## Changing the sequence
-Changes are only possible while the channel is in edit mode. Press and hold the channel select-button until the LED starts to blink.
+Changes are only possible while the channel is in edit mode. Press and hold the channel select-button until the LED starts to blink red. Red means recording.
 
 ### Sequence length
 To change the length of the sequence, press and hold the channel config-button and rotate the **Length**-button. You can set it to any length between 1 and 128 steps. As you rotate the button the length is indicated by inactive steps lit in white. If you reduce the length below an active led it will still be lit but the sequence will not get to it when playing.
@@ -135,6 +135,12 @@ Sequencer: Single note transposes the entire sequence to the closes note in the 
 Drum machine: not effect
 
 Chord machine: Single note transposes the root note and uses the channel scale to determine the other notes as per their individual settings.
+
+# Live recording
+When in edit-mode the channel select LED is red. If there is incoming clock it blinks red. Red means recording.
+
+Live recording is when midi notes come from an external midi keyboard while the clock is running. Notes will be quantized to the closest step.
+
 
 # Machines
 
