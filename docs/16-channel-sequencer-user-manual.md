@@ -6,14 +6,14 @@ The Kosmo 16 channel midi sequencer allows you to program sequences, chords, dro
 *Front panel mock up*
 
 ## Getting started
-To get started you must connect an external clock source. The Kosmo 16 channel midi sequencer expected clock signal with 24ppqn.
+To get started you must connect an external clock source. The Kosmo 16 channel midi sequencer expects a +5V clock signal with 24ppqn.
 Also, make sure that you have at least one external device connected via either midi or USB.
 
 Sequencer channels are by default mapped to separate midi channels so sequencer channel 1 sends and receives midi messages on midi channel 1. Sequencer channel 2 send and receive on midi channel 2 etc.
 
 ## Your first sequence
 1. Power on the device and ensure the external clock is connected to clock-in and that the external device is listening on midi channel 1.
-2. Long press the yellow button for channel 1 (channel select-button). This selects the channel and set it in program mode. Since the default machine is **Sequencer** the LED is yellow (other machines has other colors) and because you are in programming mode, the led is blinking.
+2. Long press the yellow button for channel 1 (channel select-button). This selects the channel and set it in program mode. Since the default machine is **Sequencer** the LED is yellow when not in programming mode (other machines has other colors), but since you are in programming mode, the led is blinking between yellow and red.
 3. Press the green button (channel config-button) to enable channel sending output. The LED will light green.
 4. In the step rows the first 16 steps are lit in white indicating that the sequence length is set to 16 and that there are no active steps.
 5. Press any of the step buttons. They will shift from white to yellow to indicate that they are active/will create sound when the clocked step reaches the step in the sequence.
@@ -136,8 +136,11 @@ Drum machine: not effect
 
 Chord machine: Single note transposes the root note and uses the channel scale to determine the other notes as per their individual settings.
 
+While in play mode the channel select leds
+indicate when the channel is outputting midi by turning the led off when no messages are being sent.
+
 # Live recording
-When in edit-mode the channel select LED is red. If there is incoming clock it blinks red. Red means recording.
+When in edit-mode the channel select LED is red. If there is incoming clock it blinks between res and the machine color. Red means recording.
 
 Live recording is when midi notes come from an external midi keyboard while the clock is running. Notes will be quantized to the closest step.
 
