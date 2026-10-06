@@ -3,7 +3,7 @@
 **Controller:** Teensy 4.1
 **Case:** 2 — its own enclosure, with 3 rack-mounted synths
 **Control link:** **Asynchronous serial + ground from the Song Manager** *(decided 2026-10-03; protocol unspecified)*. This module is **not on Case 1's I2C bus** — see [Inter-Case Interconnect](inter-case-interconnect.md). The previously proposed I2C slave address 11 is **moot**.
-**Clock:** External 24 PPQN input on CLOCK IN jack (rising edge, interrupt-driven). ⚠️ Must **not** be patched from Case 1's Tempo module — see open question 6
+**Clock:** External **+5 V** 24 PPQN input on the CLOCK IN jack (rising edge, interrupt-driven) — ✅ the level is stated in the manual as of 2026-10-06 and matches the 5 V-side conditioning already drawn. ✅ **The clock comes from Case 1 through a 6N138 opto** *(decided 2026-10-06)* — tapped from Case 1's clock splitter, barrier at the Case 2 end, injected on the jack terminal internally; see [the circuit](16-channel-sequencer-hardware.md#isolated-clock-from-case-1--the-hand-wired-6n138-board). ⚠️ It must **not** be patched from Case 1's Tempo module into the CLOCK IN jack — see [open question 6](#open-questions)
 **Reset:** External pulse on RESET jack
 **MIDI:** 1× MIDI IN (DIN), 2× MIDI OUT (DIN, duplicated), USB MIDI **host** for internally mounted synths (min 3 devices, via hub)
 **Serial (debug):** 115200 baud USB
@@ -12,7 +12,7 @@
 
 | Aspect | State |
 |---|---|
-| Behaviour / functional spec | **Settled.** ⚠️ The [user manual](16-channel-sequencer-user-manual.md) is the **source of truth** as of 2026-10-05; this document is the implementation spec beneath it |
+| Behaviour / functional spec | **Settled.** ⚠️ The [user manual](16-channel-sequencer-user-manual.md) is the **source of truth** as of 2026-10-05; this document is the implementation spec beneath it. **Reconciled against the manual's 2026-10-06 revision** — +5 V clock level, edit-mode LED and live recording, play-mode MIDI-activity LED, divider `64`. **Plus a decisions pass the same day** closing OQ 3, 12, 28, 29, 30, 31, most of 8, 10 and 32, and the machine-swap mechanism; the clock source is now Case 1, transport open |
 | Schematics | **Executed — awaiting validation.** Reconciled against a netlist export 2026-09-18 |
 | PCBs | **Ordered** — main board, row board, step-settings board. None powered up |
 | Components | Majority sourced |
@@ -62,16 +62,27 @@ Three rows of four groups. Each group is one encoder plus its display(s):
 | **Row 2** | NOTE 2 *(2 digits)* | LENGTH / **DIVIDER** *(3 digits)* | CC2 — number + value *(3+3)* | PROGRAM *(3 digits)* |
 | **Row 3** | NOTE 3 *(2 digits)* | VOLUME *(2 digits)* | CC3 — number + value *(3+3)* | TRIGGER *(4 digits)* |
 
+✅ **The widths are confirmed by the human, 2026-10-06** — NOTE 1–4 and VOLUME are **2** digits, ENV and
+TRIGGER are **4**, and everything else is **3**. That upgrades the table above from a reading of the panel
+artwork to a confirmed fact, and it reconciles exactly with the hardware doc's independent inventory of
+**15 windows, 42 digits**: 5 × 2 + 8 × 3 + 2 × 4 = 42, where the eight 3-digit windows are LENGTH,
+PROGRAM and the six CC number/value windows.
+
+Three consequences worth keeping in view, all already reflected below: a note is **letter + octave with
+the decimal point as sharp** because 2 digits is all there is; **VOLUME shows 0–99** scaled from 0–127 for
+the same reason; and **ENV and TRIGGER are the only windows that can render a 4-character code**, which is
+what makes `FSt2`/`LSt3` and the arpeggio pattern codes possible at all.
+
 **Four windows carry a second, green silkscreen label — the track layer, reached by holding the channel's green button.** Read from the panel artwork, 2026-10-04:
 
 | Window | Green label | Track parameter |
 |--------|-------------|-----------------|
-| NOTE 4 *(2 digits)* | **DIVIDER** | Track divider, 1–32 |
+| NOTE 4 *(2 digits)* | **DIVIDER** | Track divider, **1–64** — the 2026-10-06 addition of `64` still fits 2 digits |
 | LENGTH *(3 digits)* | **LENGTH** | ❓ see below |
 | VOLUME *(2 digits)* | **VOLUME** | Track volume |
 | TRIGGER *(4 digits)* | **SCALE** | Scale to lock notes to — see [Scale](#scale) |
 
-⚠️ **This contradicts what this document previously stated** — that the *LENGTH* window carried the second DIVIDER label. The panel is the artifact, so it is recorded here as the fact; confirm against the fabricated silkscreen before firmware. The panel's arrangement is also the dimensionally coherent one: DIVIDER tops out at 32 and fits NOTE 4's 2-digit window, whereas a track LENGTH of up to 128 needs LENGTH's 3 digits and a scale name needs TRIGGER's 4.
+⚠️ **This contradicts what this document previously stated** — that the *LENGTH* window carried the second DIVIDER label. The panel is the artifact, so it is recorded here as the fact; confirm against the fabricated silkscreen before firmware. The panel's arrangement is also the dimensionally coherent one, and the confirmed widths make the fit exact rather than fortunate: DIVIDER tops out at **64** and still fits NOTE 4's 2 digits, a track LENGTH of up to 128 needs LENGTH's 3, and a scale name needs TRIGGER's 4.
 
 ❓ **What track-level LENGTH is.** If it is the loop length then it is the same value as `lastStep`, which is already set by the green-hold + step-press gesture — two controls for one field, which is useful (coarse by button, exact by encoder) but needs confirming rather than assuming.
 
@@ -97,18 +108,46 @@ encoder meaning and display formatting. See
 
 | Mode | Channel select LED | Purpose |
 |------|--------------------|---------|
-| **Play** | **Solid**, in the machine's colour | Normal playback. The grid displays the selected channel's sequence. |
-| **Edit** (programming) | **Blinking**, in the machine's colour | Settings can be changed and steps programmed by hand on the grid. Editing is possible while the sequence plays. |
+| **Play**, not selected | The machine's colour, **extinguished while the channel is sending no MIDI** *(manual, 2026-10-06)*. Lit for **the length of a sounding note**; **100 ms** for a non-note message *(decided 2026-10-06)* | Normal playback |
+| **Play**, selected | **Solid** in the machine's colour — **no activity blanking** *(decided 2026-10-06)* | The grid displays this channel's sequence |
+| **Edit** (programming / recording) | **Blinking between the machine's colour and red** *(manual, 2026-10-06)*. **Red means recording** | Settings changed and steps programmed by hand on the grid, **and** live MIDI recorded. Editing is possible while the sequence plays. |
 
-⚠️ **Colour now encodes the machine, not the mode.** The sequencer machine is **yellow** and every
-other machine has its own colour, so **blink state is what carries the mode**. This supersedes the
-earlier scheme — play yellow, step-edit solid **red**, realtime-edit blinking **red** — under which
-colour was spent on the mode. Two consequences, both of them improvements:
+⚠️ **Colour encodes the machine, and the blink partner is red.** The sequencer machine is **yellow**
+and every other machine has its own colour, so **blink state carries the mode** — and the manual's
+2026-10-06 revision settles what it blinks *against*: **red**, meaning the channel is recording. This
+supersedes the earlier scheme — play yellow, step-edit solid **red**, realtime-edit blinking **red**
+— under which colour was spent on the mode. Two consequences, both of them improvements:
 
 - The sequencer's colour is **yellow**, not the orange that the MAX7219 cannot produce. Machines
   doc collision #2 is resolved.
 - Machine identity stays visible **in** edit mode, which is when the encoder semantics matter most.
   Machines doc collision #3 is resolved.
+
+⚠️ **Red is therefore not a machine colour.** An earlier pass recorded red as free again "now that it no
+longer marks edit mode" — it marks edit mode again, as half of every edit blink, and a red machine would
+blink red against red and show nothing. ✅ The five colours were assigned out of the remaining palette on
+2026-10-06 — **sequencer yellow, chord cyan, drone green, arpeggio magenta, drum blue** — leaving red to
+the edit blink and white to the step grid. See
+[Selecting a Channel's Machine](#selecting-a-channels-machine).
+
+✅ **The play-mode LED is an activity indicator, and selection overrides it** *(decided 2026-10-06)*.
+The manual's "off when no messages are being sent" applies to the **15 channels that are not selected**;
+the selected channel holds its colour solid, so selection stays legible and the grid always has a
+visible owner. Three rules, all settled:
+
+| Case | Select LED in play mode |
+|------|-------------------------|
+| **Selected** channel | **Solid** machine colour. Activity is not shown — selection wins |
+| Unselected, note sounding | Machine colour, lit **for the length of the note** — on at note-on, off at note-off |
+| Unselected, non-note message (CC, program change) | Machine colour, lit **100 ms maximum** per message |
+
+⚠️ **Three firmware consequences.** The LED follows the *scheduled gate*, not the note-on alone, so the
+compositor needs the same note-off time the scheduler holds — including fractional gates (`0.1` of a step)
+and ratchets, where a single step produces several short lights. The **100 ms cap on non-note messages**
+is what stops a CC7 envelope ramp — 10 points per step, sent continuously — from pinning the LED on for
+the whole step; it is a cap, not a pulse width, so a ramp lights the LED in 100 ms bursts rather than
+solid. And an **enabled channel resting between notes is dark**, so enable remains readable only from the
+green button's own LED.
 
 ### Channel select-button (yellow)
 
@@ -120,18 +159,43 @@ colour was spent on the mode. Two consequences, both of them improvements:
 
 In both edit-mode cases the LED stops blinking.
 
-✅ **Realtime-edit mode is retained** *(confirmed 2026-10-05)*. The manual describes only one editing
-state because realtime-edit was omitted from it; the human will add it. The three-mode model stands:
+✅ **Realtime edit is not a separate mode — edit mode *is* the recording mode** *(manual, 2026-10-06)*.
+The manual's [Live recording](16-channel-sequencer-user-manual.md#live-recording) section settles what the 2026-10-05
+pass left open: there is **one editing state**, its LED blinks the machine colour against **red**, and
+"red means recording". Hand programming on the grid and live recording from a MIDI keyboard are the same
+mode, running at the same time. The three-mode model is **withdrawn**; two modes stand:
 
 | Mode | Channel select LED | Purpose |
 |------|--------------------|---------|
-| **Step edit** | Blinking in the machine's colour | Steps programmed by hand on the grid |
-| **Realtime edit** | ❓ blink pattern undecided — colour is spoken for | Notes recorded live into the running sequence. Requires a clock; with no clock it falls back to step-edit |
+| **Play** | Machine colour, dark while the channel sends nothing | Playback |
+| **Edit** (recording) | Blinking machine colour ↔ **red** | Steps programmed by hand on the grid **and** live MIDI quantised into the sequence |
 
-❓ **Two gestures, three destinations.** The manual gives single-press to *save* and long-press to
-*discard*, which leaves nothing to switch between step-edit and realtime-edit — the press that used
-to do it is now save. And with colour carrying the machine, the two edit modes can only differ by
-blink rate or duty. Both need deciding — see [open question 13](#open-questions).
+This also disposes of the "two gestures, three destinations" problem that the 2026-10-05 pass raised:
+single-press *saves*, long-press *discards*, and nothing needs to switch between two edit modes because
+there is only one.
+
+⚠️ **The firmware's `TrackMode` enum therefore loses a state.** `PLAY | STEP_EDIT | REALTIME_EDIT` in the
+[machines doc](16-channel-sequencer-machines.md#the-interface) becomes `PLAY | EDIT`. A machine that does
+not want live notes has to ignore them, rather than rely on a mode that excludes them.
+
+✅ **With no clock, edit mode is step editing** *(decided 2026-10-06)*. There is nothing to quantise
+against, so incoming MIDI notes go **to the step being held** — the hold-a-step-and-strike-a-key route,
+and only that route. A note arriving with **no step held and no clock** is discarded.
+
+So MIDI IN has one meaning per mode and per gesture, with no overlap:
+
+| Mode | Clock | Step held | Where an incoming note goes |
+|------|-------|-----------|------------------------------|
+| Edit | running | yes | The **held** step — the gesture wins over quantising |
+| Edit | running | no | **Quantised** to the closest step (live recording) |
+| Edit | stopped | yes | The **held** step |
+| Edit | stopped | no | **Discarded** |
+| Play | either | — | **Transposes** the channel — see [Play-mode transposition](#play-mode-transposition) |
+
+⚠️ **The held step wins over quantising while the clock runs** — that follows from the two gestures
+being specified independently, and it is the only reading that keeps hand entry usable during playback,
+but it is a reading. Flagged rather than assumed.
+
 Only one track's sequence is displayed in the grid at a time — selecting a track deselects the others.
 
 
@@ -183,19 +247,48 @@ different button:
 shows a *candidate* machine, not the channel's current one. Firmware has to keep the pending value
 separate from the committed one, and the compositor has to be told which it is showing.
 
-❓ **The cycle order is undefined, and two of the five colours are unassigned.** "Next machine"
-needs a fixed order, and the chord and arpeggio machines have no colour yet — so the cycle cannot be
-walked end to end today. Known: sequencer **yellow**, drone **green**, drum **blue**. See
-[open question 28](#open-questions).
+✅ **The cycle order and all five colours are assigned** *(decided 2026-10-06)*. The gesture can now be
+walked end to end:
+
+| Order | Machine | Colour |
+|-------|---------|--------|
+| 1 | **Sequencer** | Yellow |
+| 2 | **Chord** | **Cyan** |
+| 3 | **Drone** | Green |
+| 4 | **Arpeggio** | **Magenta** |
+| 5 | **Drum** | Blue |
+
+Cycling wraps from drum back to sequencer. **Red and white are unused** — red is the edit blink partner,
+and white is already the step grid's "within length, inactive" colour.
+
+⚠️ **Cyan and magenta are the two mixed colours, and mixing is the MAX7219's weak point.** Cyan is
+green + blue and magenta is red + blue, so each lights two dies of one LED off **one shared current
+setting** — against yellow (red + green) which the panel already relies on. All three mixes land on the
+brightness-trim problem in the [hardware doc](16-channel-sequencer-hardware.md#-colour-mixing-is-a-firmware-problem-not-a-wiring-one);
+they are decided on the panel's logic, and the trim values are a bring-up measurement. ⚠️ Specifically
+worth checking that **cyan reads as distinct from blue and from white** at the trim finally chosen —
+of the five, that is the pair most likely to look alike.
 
 ❓ **There is no abort.** Releasing green commits whatever colour is showing, so a mis-press is
 undone only by cycling round again — at most four more presses with five machines. Acceptable, but
 worth knowing it is deliberate rather than missing.
 
-⚠️ **"Created" is suggestive but does not settle what happens to existing step data.** A fresh
-instance implies the channel's steps are cleared or re-validated rather than reinterpreted under the
-new machine — which is the open machine-swap question, see
-[machines doc collision 7](16-channel-sequencer-machines.md#collisions--resolved-and-remaining).
+✅ **The swap costs nothing, because machines are stateless** *(ratified 2026-10-06)*. The question was
+asked on memory grounds and answered by a design change: a machine is one of **five singletons** holding no
+per-channel state, so a swap is `machineType = x; validate(ch); reset(rt)`.
+
+| Settled | |
+|---|---|
+| **Nothing is constructed or destructed** | There is no instance to create, so the manual's word *"created"* has no mechanical consequence to interpret. No heap anywhere, therefore no leak; no per-channel object, therefore no stale pointer mid-press |
+| **No second copy of the step data** | The channel's ≈ 32 KB stays where it is and the new machine reinterprets it through `validate()`. Copying it to roll back would cost another 32 KB of `EXTMEM` per channel |
+| **Runtime state is dropped, not migrated** | `reset(rt)` clears the cursor, counters and phases in `ChannelRuntime` (RAM2). Nothing from the old machine's runtime can leak into the new one, which was the subtle risk in the stateful version |
+| **Therefore no undo** | Without a copy there is nothing to restore, so the swap is committed the moment green is released |
+
+❓ **What is still open is the step data: does `validate()` clear to defaults, or clamp in place?** Both
+cost the same memory, so the criterion does not choose between them. ⚠️ Note what the combination implies:
+the select gesture has **no abort**, so if a swap *clears*, one mis-press destroys a channel's steps with
+no way back. Clamping is the behaviour that survives a mis-press; clearing is the one that matches the word
+"created". See [machines doc collision 7](16-channel-sequencer-machines.md#collisions--resolved-and-remaining).
 
 ### Parameter Layers — Scope Rule
 
@@ -305,18 +398,26 @@ The rate at which the track advances one step. `divider = 1` follows the tempo a
 | 8 | 1/2 note |
 | 16 | 1/1 (whole) note |
 | 32 | 2/1 (double whole) note |
+| 64 | 4/1 (quadruple whole) note — ✅ **added by the manual, 2026-10-06** |
 
-✅ **The divider table and the manual now agree** — the manual's sequence skipped the half note
+✅ **The divider table and the manual agree** — the manual's sequence skipped the half note
 (`4 → 1/4` straight to `8 → 1/1`) and was corrected at source on 2026-10-05 to the consistent
-doubling above.
+doubling above; `64` was then added on 2026-10-06, extending the doubling one more rung.
 
-At 24 PPQN, PPQN-per-step = `6 × divider`.
+At 24 PPQN, PPQN-per-step = `6 × divider`. At `divider = 64` that is **384 PPQN — four whole bars per
+step**, so a 128-step channel spans 512 bars and a step with `length = 25.5` holds its gate for 102 bars.
+⚠️ Worth checking the scheduler holds at that extreme: gate length is in tenths of a step interval rather
+than in pulses, and the playhead moves once every four bars, so whatever indicates it on the grid has no
+visible motion for minutes at a time. The long dividers are what the drone machine wants —
+see [open question 33](#raised-by-the-manuals-2026-10-06-revision).
 
 ### Volume
 
 MIDI velocity for the step's notes, 0–127. Confirmed as note velocity — MIDI IN records notes, length and velocity into steps.
 
-⚠️ **0–127 does not fit the VOLUME window's 2 digits.** It is the only 0–127 parameter on a 2-digit window — CC value and PROGRAM both have 3. ❓ Either the window shows a scaled 0–99, or the range is 0–99, or it displays 3-digit values by some other convention. The panel artwork shows `80`, which does not disambiguate. This applies to the track-level VOLUME on the same window too.
+✅ **Stored as 0–127, displayed as 0–99** *(decided 2026-10-06)*. The full MIDI range is kept in the data model and the 2-digit window shows it scaled: `display = round(velocity × 99 / 127)`, and an edit writes back `velocity = round(display × 127 / 99)`. The panel artwork's `80` is a display value, i.e. velocity ≈ 103.
+
+⚠️ **The scaling is lossy in one direction** — 128 values into 100 — so an encoder detent moves velocity by 1 or 2, and a value entered from a MIDI keyboard (which records the real 0–127 velocity) will not always display back as the number the encoder would have produced. That is the right trade for a 2-digit window, but the editor must **not** round-trip through the display: it stores the encoder's own 0–127 result, never `display → velocity → display`, or repeated edits would drift. Applies to the channel-level VOLUME on the same window too.
 
 ### Envelope
 
@@ -457,14 +558,26 @@ The renderable 7-segment alphabet is roughly **A b C c d E F G H h I J L n O o P
 
 ❓ **`MAJ` vs `C-M` is an unresolved display choice**, and the two are not equivalent: the `C-M` form names a **root**, and there is no track-level key field in the data model — NOTE 1 is per-step. Choosing the root-bearing form adds a field.
 
+#### The snap rule — decided
+
+✅ **Nearest note in the scale, and on a tie the lower note** *(decided 2026-10-06)*. One rule everywhere a note meets a scale, which is what makes it cheap: the same comparison serves note entry, live recording and the play-mode transposition the manual specifies for the sequencer and chord machines — where the manual already states "if 2 notes are evenly close to the incoming note, the lower note is chosen".
+
+```
+snap(n, mask):  for d = 0, 1, 2, …     // nearest first
+                  if (n − d) in mask  return n − d      // low side wins a tie
+                  if (n + d) in mask  return n + d
+```
+
+Testing the low side first at each distance *is* the tie rule — no separate case. With the chromatic default every note is in the mask, so `d = 0` always hits and the whole thing costs one bit test.
+
 #### ❓ When the lock is applied
 
-Undecided, and the two answers behave very differently:
+**Still open**, and the two answers behave very differently:
 
 - **At entry (destructive)** — an out-of-scale note is snapped as it is stored. Changing scale afterwards leaves existing notes alone.
 - **At playback (non-destructive)** — the stored note is kept and snapped on output. Changing scale re-voices the whole sequence, and you can always get back.
 
-Non-destructive makes scale a performance control; destructive makes it an entry aid. ❓ Snap direction (nearest / down / up) is also undefined, as is what happens on a tie.
+Non-destructive makes scale a performance control; destructive makes it an entry aid. ⚠️ The snap *rule* above is settled either way — this is only about **when** it runs. See [open question 10](#open-questions).
 
 ### Channel Length (Last Step)
 
@@ -498,7 +611,7 @@ SequencerPart
     │   └── flags:       uint8_t   (step active, …)
     ├── midiChannel: uint8_t  (1–16, defaults to the channel's own number)
     ├── midiPort:    uint8_t  (0 = DIN out, 1..N = USB host device slot)
-    ├── divider:     uint8_t  (1, 2, 4, 8, 16, 32)
+    ├── divider:     uint8_t  (1, 2, 4, 8, 16, 32, 64)
     ├── lastStep:    uint8_t  (1–128 — the panel’s LENGTH; the same field)
     ├── volume:      uint8_t  (channel level — the green VOLUME label)
     ├── scale:       uint8_t  (scale index, 0 = Chromatic — see Scale)
@@ -530,6 +643,14 @@ headroom.
 
 ## Clock and Step Advancement
 
+✅ **Case 2's clock comes from Case 1** *(decided 2026-10-06)*. This settles the *source*; what is not
+settled is **how it crosses**, which is a three-way choice with real differences — see
+[Where the clock crosses](#where-the-clock-crosses) directly below. ⚠️ It does **not** license a patch
+cable from Case 1's Tempo module into this module's CLOCK IN jack: that remains prohibited, for the
+reason in [`inter-case-interconnect.md`](inter-case-interconnect.md#the-governing-constraint--partly-superseded-see-below)
+— an unbalanced DC-coupled sleeve ground is a second chassis bond, and a second bond is what turns the
+serial link's accepted ground into a loop.
+
 - 24 PPQN clock input on the CLOCK IN jack, interrupt on rising edge.
 - `ppqnCounter` cycles 0–23.
 - Each track advances independently when `ppqnCounter` aligns with `6 × track.divider`.
@@ -538,6 +659,97 @@ headroom.
 - ❓ *(Confirm the clock-loss timeout behavior. The Drum Sequencer resets after 2000 ms without a pulse; this module additionally needs to send all-notes-off / note-offs for anything still sounding.)*
 
 **Hanging notes:** every note-on must have a guaranteed note-off. On stop, reset, part change, track disable, and clock loss, the module must send note-offs for all sounding notes (or All Notes Off, CC123) on every channel it has used.
+
+### Where the clock crosses
+
+Three transports satisfy "clock from Case 1" without adding a second chassis bond. ❓ **The choice is
+open — see [open question 6](#open-questions)** — and it is worth making deliberately, because it decides
+whether step timing comes from a hardware edge or from a byte.
+
+#### A — MIDI clock over a DIN cable
+
+| | |
+|---|---|
+| **Isolation** | ✅ Inherent. MIDI is opto-isolated by specification: the cable drives an LED, and the receiver's output is referenced to Case 2's ground only. Leave pin 2 / shield unconnected at the receive end and **no bond is added** |
+| **Case 2 hardware** | ✅ **None.** MIDI IN (DIN) is already fitted and wired |
+| **Case 1 hardware** | A MIDI OUT. Either **(i)** a new one on the Song Manager — one spare hardware UART TX, two series resistors, a DIN socket — or **(ii)** the Tempo module's existing MIDI OUT, which costs nothing to build |
+| **What it carries** | 24 PPQN as `0xF8` — **exactly the rate CLOCK IN expects** — plus `0xFA`/`0xFB`/`0xFC` for start / continue / stop |
+| **Firmware** | The PPQN source becomes a parsed byte rather than an interrupt edge. ⚠️ **This reopens a recorded decision:** "MIDI IN is not used as a clock source" no longer holds |
+| **Jitter** | A byte at 31250 baud takes 320 µs, against 20.8 ms between ticks at 120 BPM — the wire is not the problem. The sender's loop is. ⚠️ **Route (ii) is the risk:** Tempo bit-bangs MIDI on `SoftwareSerial` on an Uno, which is blocking, and its jitter has never been measured. Route (i) is a Teensy hardware UART regenerating `0xF8` from the clock edge it already receives on pin 12 |
+
+⚠️ **A also fixes a hardware defect for free.** `J19` RESET [cannot register a reset as drawn](16-channel-sequencer-hardware.md#j19-reset-cannot-register-a-reset-as-drawn); `0xFA` start carries the same meaning over the link, so the broken jack stops being on the critical path.
+
+#### B — in-band on the existing serial link
+
+| | |
+|---|---|
+| **Isolation** | Neutral. The link's ground bond already exists and is accepted; clock riding it adds no second path |
+| **Hardware** | ✅ **None at either end** beyond fitting the link itself, which [open item 3](inter-case-interconnect.md#open-items) requires anyway |
+| **Firmware** | ⚠️ **Clock becomes a protocol concern.** A tick must pre-empt everything else on the wire — a queued CLI line ahead of it delays step timing directly. That means a one-byte pre-emptive frame and a priority rule, both inside [open question 2](#open-questions) |
+| **Jitter** | The worst of the three in principle, and the hardest to bound, because it depends on protocol behaviour under load rather than on a wire |
+
+#### C — a dedicated isolated clock conductor, tapped from Case 1's existing splitter
+
+| | |
+|---|---|
+| **Isolation** | ✅ Preserved by an opto-coupler or digital isolator; the clock conductor carries no ground continuity |
+| **Hardware** | One isolator plus a pair in the link cable. ⚠️ The receive side must land **inside** Case 2, diode-OR'd onto the conditioned 5 V node alongside the panel jack — the way `D18` already ORs the clock output — **not** on the front-panel jack |
+| **Firmware** | ✅ **Least change of the three.** A hardware rising edge on Teensy pin 15, exactly as drawn today |
+| **Jitter** | Best — an edge, not a byte, and the existing HCT Schmitt conditioning still cleans it up |
+
+✅ **The tap point is Case 1's existing clock splitter** *(proposed by the human, 2026-10-06)*. Case 1
+already mults Tempo's clock to the Song Manager and the Drum Sequencer, so a third tap costs nothing and
+needs no new source. ⚠️ **But the splitter is not an isolation barrier**, and that distinction is the whole
+of this question:
+
+| | |
+|---|---|
+| **What a passive splitter is** | Copper. It ties its outputs together *and* to Case 1's ground. A dedicated conductor is not a galvanically isolated one — isolation needs a transformer or an opto in the path, not a separate wire |
+| **So running it straight to Case 2** | Is the patch cable [rule 2](inter-case-interconnect.md#rules-that-hold-regardless-of-the-link) prohibits: signal plus sleeve ground is a **second chassis bond** beside the serial link's ground, and two bonds make the loop that one bond avoids |
+| **Honest about the risk** | ⚠️ The clock *signal* would very likely work — 5 V swing into an HCT Schmitt with ~2 V of margin, a series diode and a 100 kΩ pulldown. This is **not** I2C's 1.1 V window, and a dropped clock edge is not a wedged bus. The objection is **hum, not logic**: a new chassis-to-chassis loop in a system with a standing unexplained hum, and Case 2's synth audio leaves its case directly |
+| **The fix is one part** | Put an **opto at the boundary** and the splitter tap becomes transport C in full — best jitter of the three, and **no firmware change at all** |
+
+**What the isolated version looks like,** with the opto at the Case 2 end — the same arrangement MIDI uses.
+⚠️ **Note what the cable does and does not carry:** Case 1's ground **is** one of the two conductors (the
+sleeve, if the Case 1 end is a TS plug into the splitter). What makes this isolated is that **no conductor
+is common to both grounds** — Case 1's ground dies on the LED cathode, the input side of the barrier, and
+never reaches anything referenced to Case 2. The same two wires landed on Case 2's CLOCK IN *jack* instead
+would bond the chassis, because that jack's sleeve is Case 2 ground. The difference is the far end, not the
+cable:
+
+```
+CASE 1                                    │  cable: 2 conductors, no ground ref
+  splitter out (5 V clock) ──[R ~330R]──► LED+                              │
+                                          LED− ──────────────────────────── │ ──┐
+                                                                            │   │
+CASE 2                                                                      │   ▼
+  +5V ──[R 10K]──┬──► (opto out, non-inverting: emitter follower)  ──[D]──► U12.5 node
+                 │                                                   (100K pulldown already
+            phototransistor                                           defines the idle low)
+```
+
+Three details to get right, none of them expensive:
+
+- **Speed is a non-issue.** 24 PPQN at 300 BPM is 120 Hz. A PC817-class opto is ample; nothing here needs
+  a 6N137.
+- ⚠️ **Polarity.** A common-emitter opto stage **inverts**, and the existing chain (gates C then D) is
+  non-inverting from the jack onward. So either take the opto output non-inverting as drawn above, or use
+  `U12`'s **spare gate F** to re-invert before the diode. Getting this wrong gives a clock that triggers on
+  the wrong edge — which still runs, at a half-pulse offset, and is miserable to spot.
+- **Diode-OR, don't hard-wire.** The isolated feed and the panel jack both reach the same node; a series
+  diode on each keeps either one from loading the other, exactly as `D20` does today.
+
+⚠️ **One thing to confirm in Case 1 before building it:** what "isolated" means on the existing
+splitter-to-module runs. If they are ordinary patch cables or internal wiring, there is no barrier there
+today — which is fine *inside* one case, where everything already shares a ground, and is precisely what
+stops being fine at the case boundary.
+
+#### What changes regardless of which one is chosen
+
+1. **The front-panel CLOCK IN jack stops being the system clock path.** It stays useful for a local source and for bench work, but the inter-case feed must not arrive through it.
+2. **Clock loss and link loss become the same failure.** The clock-loss timeout above now also fires when Case 1 goes away mid-song, and it must still send note-offs for everything sounding.
+3. **[Open question 2](#open-questions) grows a clause:** the protocol has to state whether clock is in-band (B) or explicitly not (A and C).
+4. **Rule 2 in [`inter-case-interconnect.md`](inter-case-interconnect.md#rules-that-hold-regardless-of-the-link) stands unchanged** — no patch cable between the cases, clock included.
 
 ---
 
@@ -595,6 +807,76 @@ channel's scale like any other.
 
 MIDI IN is **not** used as a clock source (the CLOCK IN jack is) and does not act as a thru.
 
+#### Live recording
+
+✅ **Specified by the manual, 2026-10-06.** The second way notes reach steps, and it needs no step button
+held:
+
+- The channel must be in **edit mode** — the select LED blinking machine-colour against **red**, where
+  red *is* the recording indication.
+- The **clock must be running**. Live recording is defined as notes arriving from an external keyboard
+  while the clock runs.
+- Each incoming note is **quantised to the closest step**.
+
+Both entry routes write the same `note[0..3]` field, so the four-notes-per-step limit and the
+fifth-replaces-first rule apply to recorded notes as well.
+
+✅ **The write rules — decided 2026-10-06:**
+
+| Rule | Decision |
+|---|---|
+| **Activation** | A recorded note **activates** the step it lands on. Recording into an empty sequence therefore builds it, rather than filling steps that stay silent |
+| **Merge vs replace** | **Merge.** The note is added to whatever the step already holds, under the existing four-note limit — so a fifth note replaces the first, exactly as the hold-a-step route does |
+| **Tie** | A note falling exactly between two steps goes to the **next** step — forward, never back |
+| **Past the last step** | **Wraps to step 1.** This is the tie rule's own consequence: a note after the channel's last step rounds forward, and forward from the last step is step 1 |
+
+Quantising is **per channel**, against that channel's own step interval of `6 × divider` PPQN — so the
+same keyboard phrase lands differently on a `divider = 1` channel than on a `divider = 4` one.
+
+⚠️ **Merge + activate means recording cannot subtract.** Every pass adds notes and switches steps on; nothing
+in live recording ever clears a note or deactivates a step. Removing a mistake means pressing the step
+(which deactivates it) or long-pressing the NOTE 1 encoder (which resets it) by hand. Worth knowing before
+the first long take, and worth considering whether an undo or a "replace" variant is wanted later.
+
+⚠️ **And the wrap is audible at the loop seam.** A note played a hair late at the end of a bar lands on
+step 1 of the *same* pass, not the next one — so it sounds immediately rather than a loop later. That is the
+decided behaviour, not a defect, but it is the one case where quantising moves a note backwards in time by
+almost a whole loop.
+
+❓ **Two parts still open:** whether **velocity and length** are captured (the hold-a-step route records
+notes, length and velocity; whether the live route derives length from the note-off is unstated), and what
+live recording does on **drone, arpeggio and drum** — the drone has no steps, the arpeggio *generates* its
+steps from one seed note, and a drum lane's NOTE 1 is a device mapping rather than a pitch. See
+[open question 32](#raised-by-the-manuals-2026-10-06-revision).
+
+### Play-mode transposition
+
+✅ **This is what the Scale section's "applied when transposing" refers to, and the manual specifies it**
+*(user manual, Play Mode)*. It is the **third** meaning of MIDI IN, and it needs no gesture at all: in
+play mode, notes arriving on a channel's MIDI channel transpose that channel rather than being recorded.
+So transposition is **per channel, from MIDI IN** — not per part, not from the panel, and not an
+instruction on the Song Manager link.
+
+| Machine | What an incoming note does |
+|---------|---------------------------|
+| **Sequencer** | Transposes the **whole sequence**, to the nearest scale note relative to the incoming note. Ties go to the **lower** note — the same [snap rule](#the-snap-rule--decided) as everywhere else. **Single note only:** with several held, the **last** one is used; the sequencer does not transpose by chords |
+| **Chord** | Transposes the **root note**; the channel scale then re-derives the other notes of the chord from their own settings |
+| **Drum** | **No effect** — a drum lane's NOTE 1 is a device mapping, not a pitch |
+| **Arpeggio** | ⚠️ Not covered by the manual's list. Its seed note is NOTE 1 of step 1, so transposing it is meaningful, but unstated |
+| **Drone** | ⚠️ Not covered either. Its four notes are channel-scoped, so the same question as live recording asks here |
+
+❓ **Three things the manual does not settle:**
+
+| Question | Why it matters |
+|---|---|
+| **Relative to what?** | "Transposes to the closest note relative to the incoming note" fixes the target but not the origin — the offset must be measured from something, and candidates are NOTE 1 of step 1, the lowest note in the sequence, or a fixed reference like the A3 default |
+| **Momentary or latched?** | Whether the sequence returns to pitch on note-off, or stays transposed until the next note arrives. Momentary makes it a performance gesture; latched makes it a setting |
+| **Is the transposed pitch stored?** | If it is, transposition is destructive and interacts with the [when-the-lock-is-applied](#-when-the-lock-is-applied) question. If not, it is an output-time offset and costs one field per channel |
+
+⚠️ **Note that this makes MIDI IN's meaning mode-dependent**, which is a clean split but has to be
+implemented as one: in **play** mode an incoming note transposes, in **edit** mode the same note is
+recorded or written to a held step. Nothing in the data path is shared except the parser.
+
 ---
 
 ## Control Link — serial from the Song Manager
@@ -611,7 +893,18 @@ What the hardware gives, verified from the main-board netlist:
 
 ### Instruction semantics
 
-Inherited from the I2C convention — first byte `(instruction << 4) | (partIndex & 0x0F)`, second byte the chunk index. Whether the serial framing keeps that byte layout is part of open question 2; the *behaviours* are settled either way.
+✅ **The semantics are inherited from the I2C bus wholesale** *(confirmed 2026-10-06)* — the same instruction set, the same meanings. Only the carriage changes.
+
+⚠️ **Correction against the source, 2026-10-06.** This document stated the first byte as
+`(instruction << 4) | (partIndex & 0x0F)`. The code is
+`(static_cast<uint8_t>(instruction) & 0xF0) | (partIndex & 0x0F)`
+(`KosmoMasterI2CService.h:27`) — **no shift**, because the `Instruction` enum values are already in the
+high nibble (`SetPartIndex = 0x10`, `SetParts = 0x20`, … `Reset = 0xF0`, `Common.h:50`). Shifting `0x10`
+left by four would send `0x00`. The artifact is the fact; the second byte is the chunk index as stated.
+
+⚠️ **This byte layout is now historical for this link, not a specification of it.** With
+[newline-delimited text framing](#open-questions) (OQ 2a) the opcode travels as text, so what carries
+over is the *instruction set and its behaviours*, not the nibble packing.
 
 | Instruction | Opcode | Expected behavior |
 |-------------|--------|-------------------|
@@ -622,6 +915,42 @@ Inherited from the I2C convention — first byte `(instruction << 4) | (partInde
 | SetAutomation | 0x70 | Per-track parameter automation (e.g. enable/disable a track, change a divider) |
 | Reset | 0xF0 | All tracks to step 0 |
 
+#### What actually crosses the link — and what does not
+
+✅ **Only song structure travels** *(confirmed 2026-10-06)*: **song index and part index**, plus transport.
+This is the dividend of local SD storage, and it is worth stating as an exclusion because it removes the
+largest instruction in the set:
+
+| Instruction | Crosses? | Why |
+|---|---|---|
+| `SetPartIndex` 0x10 | ✅ Yes | The part index *is* the runtime traffic |
+| `Start` 0x30 / `Stop` 0x40 / `Reset` 0xF0 | ✅ Yes | Transport. `Stop` must still flush note-offs |
+| `InitPart` 0x50 / `InitParts` 0x60 | ✅ Yes | Small, index-only |
+| **`SetParts` 0x20** | ❌ **No** | ⚠️ **The chunked part payload never crosses.** ≈ 32.9 KB per part is exactly what local storage exists to avoid — see [Storage](#storage-local-sd-card--decided) |
+| `SetAutomation` 0x70 | ❓ **Undecided** | See below |
+
+⚠️ **Two instructions the manual needs and the I2C set does not have.** The manual requires this module
+to *"load data for a requested song"* and *"save data for the current song"* — neither has an opcode,
+because on the I2C bus the master holds the song and the slaves never load or save anything. So the
+inherited set covers the runtime traffic but **not** the storage traffic, and the link needs **LoadSong**
+and **SaveSong** (song index 1–99, plus the *"not on this card"* reply from
+[Keeping the two cards in step](#keeping-the-two-cards-in-step--decided)). That is new protocol surface,
+not inherited, and it belongs in OQ 2c.
+
+❓ **Automation may cross, and it does not survive the trip unchanged.** `Automation` is
+`{ slaveAddress, target, value }` with sequences of `{ startStep, interval, automations[] }`
+(`Models.h:45`, `:87`), resolved on the master by `AutomationController` and emitted as `SetAutomation`
+at the right step. Three things break if that is forwarded as-is:
+
+| Problem | |
+|---|---|
+| **`slaveAddress` has no meaning here** | This module is not on the I2C bus and address 11 is moot. It needs a node id or must be reinterpreted — which is [OQ 2b](#open-questions) (addressing) arriving from an unexpected direction |
+| **The `target` space is undefined** | On an I2C slave `target` is an opaque parameter id. For a 16-channel module a target has to name *which channel* **and** *which parameter*, so one byte is unlikely to be enough |
+| **It is runtime traffic** | Automation fires on a step boundary, so it competes with transport and possibly clock for the wire — [OQ 2f](#open-questions) |
+
+Automation is therefore recorded as **"probably, but unspecified"** rather than as a settled part of the
+message set.
+
 ### Storage: local SD card — decided
 
 Part data is **stored on this module's own SD card**, not streamed across the link at playback time. The reason it cannot be streamed: a part is ≈ 32.9 KB, which at 100 kHz in 30-byte chunks is ≈ 1,175 chunks (≈ 4 s) per part and ≈ 18,800 chunks (over a minute) for a 16-part song load — against 48 transmissions for a whole song today.
@@ -631,6 +960,26 @@ Part data is **stored on this module's own SD card**, not streamed across the li
 So at run time the Song Manager sends only **song index, part index, and transport**, and this module loads the part from its own SD card. Part changes become instant, and chaining works.
 
 **This makes the Teensy 4.1's built-in SD slot a hard requirement of the schematic** (and rules out the Teensy 4.0).
+
+#### Keeping the two cards in step — decided
+
+✅ **The Song Manager dictates the song number, in the read and write commands themselves** *(decided
+2026-10-06)*. There is no synchronisation protocol and no handshake to design: this module has no notion
+of a "current song" of its own that could drift. Every load and every save carries the song index from the
+master, and this module reads or writes `song_<index>` on its own card accordingly.
+
+| Consequence | |
+|---|---|
+| **No mismatch state exists** | The two cards cannot disagree about *which* song is loaded, because only one of them has an opinion |
+| **File naming follows from it** | Files are keyed by the master's song index, 1–99, mirroring the Song Manager's own `song_[index].dat` convention |
+| **A missing file is the only failure left** | The master asks for song 42 and this module has no `song_42` — so the link needs a *"nothing here"* reply, which is a message in [open question 2](#open-questions)'s set rather than a separate problem |
+| **Local editing stays legal** | Panel edits change this module's copy; the next save writes it under whatever index the master names |
+
+⚠️ **The one thing this does not cover is a save that never happened.** If panel edits are not saved
+before the master selects another song, they are lost without warning — the master has no way to know the
+module has unsaved work, and the manual's save/discard gestures are per *channel*, not per song. Whether a
+song switch should auto-save, prompt, or silently discard is a gap, not a decision; see
+[open question 34](#raised-by-the-manuals-2026-10-06-revision).
 
 ### Programming over the link — new protocol requirement
 
@@ -727,7 +1076,7 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 | MIDI clock | Forwarded — 0xF8/0xFA/0xFC to DIN and internal synths, 1:1 from the 24 PPQN input |
 | Message order | Program change → CC → note-on |
 | Step display | Unlit past the channel length, **white** within it and inactive, **yellow** when active |
-| MIDI IN | Note entry only — notes, length, velocity. Not a clock source, not a thru |
+| MIDI IN | Note entry only — notes, length, velocity, by holding a step **or** by live recording. Not a clock source, not a thru |
 | DIN OUT A/B | Duplicated output for patching convenience — one logical port, one UART |
 | USB MIDI | **Host only**, for internally mounted synths (Behringer K-2, PRO-800, + spare). No panel socket; external gear uses DIN |
 | USB device count | Minimum 3 slots (declare 4 — spare slots cost nothing) |
@@ -735,10 +1084,14 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 | USB hub form | **Bought module first** *(revised 2026-09-17)* — bare 4-port USB 2.0, FE1.1s or GL850G, **with an external 5 V input**. A custom PCB is stage 2, built only if bring-up shows a reason; if built, off the master board |
 | USB ground isolation | **None built in** *(revised 2026-09-17)* — if hum appears, fit an inline full-speed USB isolator dongle upstream of the hub. The earlier "split plane now, it cannot be retrofitted" argument applies to a fabbed board, and was not a reason to fab one |
 | Part storage | **Local SD card** on this module. Master sends song index, part index and transport only |
-| Control link | **Asynchronous serial + ground** to the Song Manager *(2026-10-03)*. Not on Case 1's I2C bus; address 11 moot. Both ends Teensy 4.1 at 3.3 V, so no level shifting. ⚠️ Protocol unspecified |
+| Control link | **Asynchronous serial + ground** to the Song Manager *(2026-10-03)*. Not on Case 1's I2C bus; address 11 moot. Both ends Teensy 4.1 at 3.3 V, so no level shifting. ⚠️ Protocol still unspecified, but see the three rows below |
+| Link semantics | **Inherited from the I2C instruction set unchanged** *(2026-10-06)*. ⚠️ Except load song / save song, which that set has no opcode for |
+| Link framing | **Serialized text, one packet per line, newline-terminated** *(2026-10-06)* — the same idiom as the song files and both CLIs. Resync is "discard to the next newline" |
+| Link error detection | **A software checksum appended to the line as printable hex** *(2026-10-06)*. ⚠️ Algorithm open — XOR-8, sum-8 or CRC-8 |
+| What crosses the link | **Song index, part index, transport** — and possibly automation. ⚠️ **Not** `SetParts` chunked part data; that is what local SD exists to avoid |
 | Programming | Song Manager's serial CLI **extended to program this module across the link** (a `CliCommand` equivalent) |
 | Trigger conditions | **Ratio `1.m` (m = 1–8)** and first/last 1–3 occurrences — 14 values. **Probability removed** 2026-10-05: nothing in this module plays at random |
-| Divider | Mathematically consistent doubling: 1 = 1/16 … 32 = 2/1. ✅ The manual was corrected to match 2026-10-05 |
+| Divider | Mathematically consistent doubling: 1 = 1/16 … 32 = 2/1, **and 64 = 4/1** *(added by the manual 2026-10-06)*. ✅ The manual was corrected to match 2026-10-05 |
 | Envelope span | One step interval (divider-dependent), not a literal 16th |
 | Volume envelope | CC7 ramp, **10 points per step**, envelope wins over a step's own CC7 slot |
 | ALT layer | Momentary — active only while the step button is held |
@@ -748,7 +1101,9 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 | Panel SVG | Complete as drawn — no USB cutout needed |
 | Source of truth | ⚠️ The **[user manual](16-channel-sequencer-user-manual.md)** as of 2026-10-05. This document is the implementation spec beneath it |
 | Machines | **Ratified** — five machines: sequencer, chord, drone, arpeggio, drum. Each owns grid geometry, encoder meaning and display formatting |
-| Mode LED | **Colour = machine, blink = edit mode.** Sequencer is yellow; red is no longer reserved for editing |
+| Mode LED | **Colour = machine, blink = edit mode, blink partner = red** *(manual, 2026-10-06)*. Red means recording, so red is **not** available as a machine colour. Sequencer is yellow. In **play** mode the LED goes **dark while the channel sends no MIDI** |
+| Editing modes | **Two, not three** *(manual, 2026-10-06)* — play and edit. Edit mode **is** the recording mode; realtime-edit is not a separate state. `TrackMode` is `PLAY \| EDIT` |
+| Live recording | Notes from an external keyboard, **in edit mode, with the clock running, quantised to the closest step**. No step button held. ⚠️ Write rules undecided — see [Live recording](#live-recording) |
 | Channel length | Track LENGTH **is** `lastStep` — 1–128, set on the LENGTH encoder under green-hold |
 | MIDI channel default | Channel *n* → MIDI channel *n*, editable per channel |
 | CC7 | **Reserved outright** by the envelope — a step's CC slot targeting CC7 is ignored |
@@ -759,29 +1114,64 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 | Drum lanes | 8 lanes × 16, up to 64 steps each. **A lane's settings are its first step's**, via long-press on the lane head. `divider` channel-wide |
 | Arpeggio pattern | On the **ENV encoder** — direction pattern and octave range in one predefined value. No channel pattern field |
 | Machine selection | **Green held + yellow pressed** — each press cycles to the next machine, the LED previews its colour, release of green creates it |
+| Machine colours | Sequencer **yellow**, chord **cyan**, drone **green**, arpeggio **magenta**, drum **blue** *(2026-10-06)*. Cycle order is that order, wrapping. Red (edit blink) and white (inactive step) are not machine colours |
+| Play-mode select LED | **Selection overrides activity** *(2026-10-06)* — selected channel solid; others lit for a note's length, and 100 ms max per non-note message |
+| Edit mode, no clock | **Step editing** *(2026-10-06)* — incoming notes go to the held step; with no step held and no clock they are discarded |
+| Live recording | Recorded notes **activate** the step and **merge** with its notes (fifth replaces first); ties round to the **next** step; past the last step it **wraps to step 1** *(2026-10-06)*. Recording adds only — it never removes |
+| MIDI IN by mode | **Play** = transpose the channel; **edit** = record (quantised) or write to the held step *(manual + 2026-10-06)* |
+| Scale snap | **Nearest scale note, ties to the lower note** *(2026-10-06)* — one rule for entry, recording and transposition |
+| Transposition | **Per channel, from MIDI IN in play mode** *(manual)*. Sequencer transposes the sequence, chord the root, drum not at all |
+| VOLUME display | **Store 0–127, display 0–99 scaled** *(2026-10-06)*. The editor keeps the 0–127 value and never round-trips through the display |
+| Clock source | **From Case 1, through a 6N138 opto board** *(2026-10-06)* — tapped from Case 1's clock splitter, barrier at the Case 2 end, output diode-OR'd onto the CLOCK IN jack terminal internally. No main-board or firmware change. ⚠️ A patch cable between cases stays prohibited, and the cable shield grounds at **one end only** |
+| Song identity | **The Song Manager dictates the song number** in its read/write commands *(2026-10-06)*. This module has no current-song state of its own to drift |
+| Drone re-enable | **Picks up the running counter** *(2026-10-06)* — the module's in-phase rule wins over "starts when enabled" |
+| Machines | **Stateless — 5 singletons, no per-channel instance state** *(ratified 2026-10-06)*. Persisted state in `Channel` (`EXTMEM`), runtime state in `ChannelRuntime[16]` (RAM2, out of the clock path's PSRAM). `pulse()` takes `const Channel&`, so **playback cannot mutate the song** |
+| Machine swap | `machineType = x; validate(ch); reset(rt)` — nothing constructed, no second copy, **no undo** *(2026-10-06)*. ⚠️ Whether `validate()` clears or clamps the step data is still open |
 
 ## Open Questions
 
 **The hardware is committed** — schematics drawn and PCBs ordered. What remains is firmware-level, plus one planning decision that gates the firmware.
 
 1. ✅ **What counts as an "occurrence"** for the `FSt`/`LSt` trigger conditions — **answered: the repeats from the Song Manager**, which makes "last" knowable in advance. See Trigger.
-2. ⚠️ **The control link protocol — the live blocker, and a planning decision, not an execution one.** Framing, addressing, acknowledgement and error detection on the serial link, covering both runtime transport (song index, part index, transport) and forwarded CLI traffic, which share one wire. The medium has no hardware error detection. **No firmware at either end until this is written down** — see [Ways of Working](ways-of-working.md#the-first-real-test). This subsumes the old "`CliCommand` response protocol" question, which serial's bidirectionality simplifies but does not answer.
-3. **Keeping the two SD cards in step** — the Song Manager holds the song, this module holds its own copy of the sequencer parts. How is a mismatch detected? Keying the sequencer's files by song index makes drift at least detectable.
+2. ⚠️ **The control link protocol — still the live blocker, now partly specified.** **No firmware at either end until it is written down** — see [Ways of Working](ways-of-working.md#the-first-real-test). Three things are settled as of 2026-10-06: the **semantics are inherited from the I2C bus** unchanged, **only song structure crosses** (song index, part index, transport — not the ≈ 32.9 KB of part data, which is what local SD is for), and the **framing is newline-delimited text** with a **software checksum**. See [What actually crosses the link](#what-actually-crosses-the-link--and-what-does-not).
+
+   ⚠️ **Two gaps the inherited set does not cover:** the manual's **load song / save song** have no I2C opcode (on that bus the master holds the song), and **automation** carries a `slaveAddress` and an opaque `target` that mean nothing on a module with 16 channels and no bus address. Both are new protocol surface rather than inherited behaviour.
+
+   Nine decisions, each answerable on its own:
+
+   | | Decision | Why it cannot be left to implementation |
+   |---|---|---|
+   | **2a** | ✅ **Answered 2026-10-06: serialized text, one packet per line, newline-terminated.** It matches the rest of the system — the song files are text, both CLIs are text — so one parser family serves everything. ⚠️ Three things it obliges: **no raw binary** in a payload (nothing may contain `0x0A`, which is free since only indices travel); a **line-length cap** with a stated overflow rule, because the receiver's buffer is fixed; and **CRLF tolerance**, since a terminal on either end may append `\r`. ✅ Its one real virtue: **resync is free** — on a bad line, discard to the next newline, which is exactly the desync failure the other framings need machinery to survive |
+   | **2b** | **Addressing** — whether a frame carries a device address at all | Two nodes today; the manual says the link "can be shifted to CAN BUS when/if more cases are added", and CAN is addressed. One spare byte now costs nothing and saves a flag day later |
+   | **2c** | **Message set and payloads** — the text keyword for each behaviour and the fields it carries. ⚠️ Three items are **not** inherited and have to be invented here: **`LoadSong` / `SaveSong`** (song index 1–99), the *"song not on this card"* reply that [Keeping the two cards in step](#keeping-the-two-cards-in-step--decided) needs, and — if automation crosses — a **target naming scheme** that says *which channel* and *which parameter*, since the I2C `target` byte assumes a single-purpose slave | The behaviours are settled; their encoding is not |
+   | **2d** | **Acknowledgement** — per-message ack, timeout and retry count, or fire-and-forget | Decides whether the Song Manager can know a part load succeeded. The I2C convention it inherits from had ACK in hardware; a UART has none |
+   | **2e** | ✅ **Direction set 2026-10-06: a software checksum, computed in firmware and appended to the line as printable hex.** ❓ The algorithm is still open, and the three candidates differ more than they look: **XOR-8** (one line of code, catches a single flipped byte, blind to transposed bytes), **sum-8** (as cheap, slightly better spread), **CRC-8** (a dozen lines or a 256-byte table; detects all 1- and 2-bit errors in frames this short — the sweet spot for tens of bytes), **CRC-16/CCITT** (4 hex chars, more than this traffic needs). ⚠️ Whichever is chosen, **write down the exact byte range it covers** — everything before the checksum field, excluding the delimiter and the newline — because a two-end disagreement about the range is the classic way a checksum passes in testing and fails on the bench |
+   | **2f** | **Interleaving and priority** — CLI text, runtime transport, possibly automation (2i) and possibly clock all share one wire | A 32-byte CLI reply queued ahead of a part change delays it. ⚠️ Newline framing makes this sharper, not softer: a line is **atomic**, so a long CLI line cannot be interrupted mid-way by a clock tick — the pre-emption unit is a whole line, which bounds the worst-case delay at one line's transmission time. If [clock rides the link](#where-the-clock-crosses) (transport 6b) that bound is the jitter figure |
+   | **2g** | **Baud rate** | The traffic is tiny, so this is set by noise margin rather than throughput — slower is more robust on a bonded ground, and there is no reason to run 2 Mbit |
+   | **2h** | **Reverse direction** — what this module sends back: acks, CLI output, status, errors | The link is bidirectional, which removes I2C's polled-read problem but does not say what travels back or how it interleaves with 2f |
+   | **2i** | ❓ **Does automation cross at all** — and if so, as resolved `SetAutomation` events emitted by the master's `AutomationController` at each step boundary (which is what it does on I2C today), or as whole `AutomationSequence` records loaded once per part and run locally? | The second keeps automation off the wire at playback time and puts it in this module's own SD files beside the parts — the same argument that moved part storage local. The first keeps both ends simpler but adds step-boundary traffic competing with transport, and with clock if clock rides the link (2f) |
+
+   With **2a** and **2e** set, the two that now gate the rest are **2c** (the keyword and field list — nothing can be written without it) and **2b** (whether a line carries a node id, which 2i may force anyway). ⚠️ Both are still cheaper to decide than to retrofit: changing either one breaks both ends at the same time.
+3. ✅ **Keeping the two SD cards in step — answered 2026-10-06: the Song Manager dictates the song number in the read and write commands.** This module has no "current song" of its own to drift, so no mismatch state exists. Files are keyed by the master's index, 1–99. Two consequences: a *"song not on this card"* reply joins the message set (OQ 2c), and **unsaved panel edits at a song switch** are now the only loose end — see OQ 34. See [Keeping the two cards in step](#keeping-the-two-cards-in-step--decided).
 4. **ALT layer contents** — 12 reserved per-step slots, none defined.
 5. **CC7 ramp fine-tuning** — 10 points per step is the starting value, to be adjusted by ear against DIN timing.
-6. ⚠️ **Where Case 2's clock comes from.** This module's CLOCK IN expects 24 PPQN, and it **must not be patched from Case 1's Tempo module** — a patch cable bonds the two chassis through the most timing-sensitive input in the module. So either clock rides the serial link, or Case 2 gets a local source. A hardware question with a firmware consequence; it is tracked in [`inter-case-interconnect.md`](inter-case-interconnect.md#open-items) open item 5.
+6. ✅ **How the clock crosses — answered 2026-10-06: transport 6c, a 6N138 opto on a hand-wired board, tapped from Case 1's existing clock splitter.** The barrier sits at the **Case 2 end**: Case 1's ground travels in the cable (it is the TS sleeve at the Case 1 tap) but **dies on the LED cathode**, so no conductor is common to both grounds — land those same two wires on Case 2's CLOCK IN *jack* and its sleeve bonds the chassis instead. ⚠️ The Case 2 end of the cable must therefore be a connector that **cannot** be plugged into a patch jack. The output lands on the CLOCK IN jack's tip terminal internally through a series diode, needing **no main-board change** — the existing `D20` → 1 kΩ → HCT Schmitt conditioning still does its job. ✅ Best jitter of the three candidates and **no firmware change**: a real rising edge on Teensy pin 15, as drawn. Circuit, BOM, polarity audit and bring-up steps: [hardware doc](16-channel-sequencer-hardware.md#isolated-clock-from-case-1--the-hand-wired-6n138-board).
+
+   ⚠️ **Three things that will bite**, each covered there: the **74HC14 inverting stage is not optional** — without it the Teensy triggers on the clock's falling edge, offset by one pulse width and by a *different* amount if the source's duty cycle varies with tempo; the cable **shield must be grounded at one end only**, or it becomes the second chassis bond the opto exists to prevent; and **Case 1's splitter node must be measured under LED load** before it is trusted, since a series diode or resistor there could sag it.
+
+   *Not taken, kept for the reasoning:* **6a** MIDI clock over DIN — isolated by specification and it would have carried transport and start/stop too, but it needed a MIDI OUT in Case 1 and reopened the "MIDI IN is not a clock source" decision. **6b** in-band on the serial link — no hardware at all, but it made clock a protocol concern with a pre-emption rule and load-dependent jitter. ✅ Note the opto board **is** a MIDI input stage, so nothing built now is wasted if 6a is ever preferred. See [Where the clock crosses](#where-the-clock-crosses); tracked in [`inter-case-interconnect.md`](inter-case-interconnect.md#open-items) open item 5.
 7. **Encoder step size and coarse/fine** — velocity scaling or push-and-turn. A UI decision; see the Step-Parameter Section above. The electrical side is settled.
-8. ⚠️ **Transposition is referenced but undefined.** The scale note says the scale "is also applied when transposing the sequence", but no control, gesture or link instruction for transposing exists. Per-track or per-part? From the panel or from the Song Manager?
+8. ✅ **Transposition — largely answered 2026-10-06: it is the manual's Play Mode behaviour.** The control that was "missing" is **MIDI IN in play mode**: a note arriving on a channel's MIDI channel transposes that channel. So it is **per channel, from MIDI IN** — not per part, not from the panel, not an instruction on the link. Sequencer transposes the whole sequence, chord transposes the root, drum ignores it. ❓ Four residuals: **relative to what** the offset is measured (NOTE 1 of step 1, the lowest note, or a fixed reference), whether it is **momentary or latched**, whether the transposed pitch is **stored or applied at output**, and what **arpeggio and drone** do (the manual's list omits both). See [Play-mode transposition](#play-mode-transposition).
 9. ⚠️ **Scale display codes — deferred with the scale set.** Only four scales are being built first and all four codes render, so this does not bite today. It returns the moment the set grows: eight of the ten deferred codes contain **M**, **W** or **X**, and `PMa`/`PMI` already differ only by a case a 7-segment digit cannot show. Cheaper to fix at four than at fourteen. See [Scale](#scale).
-10. **When the scale lock is applied** — at note entry (destructive) or at playback (non-destructive), and the snap direction. See [Scale](#scale).
+10. **When the scale lock is applied** — at note entry (destructive) or at playback (non-destructive). ✅ **The snap rule itself is answered** *(2026-10-06)*: **nearest note in the scale, ties to the lower note**, which is one rule for note entry, live recording and play-mode transposition alike. What remains is only *when* it runs. See [The snap rule](#the-snap-rule--decided) and [When the lock is applied](#-when-the-lock-is-applied).
 11. ✅ **What track-level LENGTH is — answered: it *is* `lastStep`**, 1–128, on the LENGTH encoder under green-hold.
-12. **VOLUME's 0–127 range on a 2-digit window.** The manual does not address it. See [Volume](#volume).
+12. ✅ **VOLUME's 0–127 range on a 2-digit window — answered 2026-10-06: store 0–127, display 0–99 scaled.** `display = round(v × 99 / 127)`. ⚠️ The editor must keep the encoder's own 0–127 value rather than round-tripping through the display, or repeated edits drift. See [Volume](#volume).
 
 ### Raised by the move to the user manual as source of truth, and answered *(2026-10-05)*
 
 | # | Question | Resolution |
 |---|---|---|
-| 13 | Does realtime-edit survive? | ✅ **Yes** — omitted from the manual by oversight; the human will add it. ⚠️ *But* its gesture and its LED state are both unassigned — see below |
+| 13 | Does realtime-edit survive? | ✅ **Answered again, differently, on 2026-10-06 — not as a separate mode.** The manual's Live recording section makes **edit mode itself the recording mode**: one editing state, blinking machine-colour ↔ red. The 2026-10-05 answer ("yes, the human will add it") is superseded, and no gesture or LED state is needed. See [Modes](#modes) |
 | 14 | Does green-hold + step still set the length? | ✅ **Yes**, on every machine that has a step count. The drone ignores it |
 | 15 | Are fractional gate lengths dropped? | ✅ **No** — retained, `0.1`–`0.9`. The manual's omission was an oversight and is corrected there |
 | 16 | The divider table skips the half note | ✅ **Corrected in the manual** — `8 → 1/2`, `16 → 1/1`, `32 → 2/1` |
@@ -794,10 +1184,19 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 
 ### Remaining, after that pass
 
-23. ⚠️ **Realtime-edit has neither a gesture nor an LED state.** Colour now carries the machine and blink carries "editing", so the two edit modes can only differ by blink rate or duty. And the manual's single-press/long-press are spent on save and discard, leaving nothing to switch between them. Both need deciding before the editor is written. See [Modes](#modes).
+23. ✅ **Closed by the manual's 2026-10-06 revision.** Realtime-edit needed neither a gesture nor an LED state in the end, because it is not a separate mode — **edit mode records**, and the blink partner is **red**. What it leaves behind are questions 30–32 below. See [Modes](#modes).
 24. **Only the `1.m` row of the ratio trigger grid is defined** — `1.1`–`1.8`, "one pass in every *m*". Whether `2.3`-style conditions ("the 2nd pass of every 3") exist is unstated. See [Trigger](#trigger).
 25. ✅ **How a channel's machine is selected — answered: green held + yellow pressed**, cycling colours, committed on green release. See [Selecting a Channel's Machine](#selecting-a-channels-machine). Two follow-ons remain: the **cycle order**, and the two unassigned colours (OQ 28).
 26. **Drum lane paging** — the manual's own `TBD`: a lane of up to 64 steps needs a way to reach pages 2–4, and nothing on the panel is assigned to it.
 27. **The arpeggio pattern list** — the manual's `TBD`, "the usual suspects". Each entry sets both a direction pattern and an octave range (`ud1` = up-down, one octave).
-28. ⚠️ **Two machine colours are unassigned, and the select gesture now depends on them.** Chord held YELLOW, which the sequencer now owns; arpeggio has none. Known: sequencer **yellow**, drone **green**, drum **blue**. The MAX7219's palette is 7 on/off colours — red, green, blue, yellow, magenta, cyan, white — so five distinct machine colours do fit, and red is free again now that it no longer marks edit mode. But the mixed colours share one current setting across the three dies, so the two new ones want picking against the brightness-trim table rather than on paper. The **cycle order** for green-hold + yellow needs fixing at the same time.
-29. ⚠️ **The drone's gate phase on re-enable.** Enabling mid-run either restarts its 16-column bar or picks up the running counter; the module's general in-phase rule points one way and the drone section the other. See [machines doc](16-channel-sequencer-machines.md#drone-machine).
+28. ✅ **Machine colours and cycle order — answered 2026-10-06.** Chord is **cyan**, arpeggio is **magenta**, and the cycle runs **sequencer → chord → drone → arpeggio → drum**, wrapping. Red is spent on the edit blink and white on the step grid, so neither is a machine colour. ⚠️ **One bring-up item survives:** cyan and magenta are both *mixed* colours sharing one current setting across the three dies, so the brightness trim decides whether **cyan reads distinctly from blue and white** — a measurement, not a planning question. See [Selecting a Channel's Machine](#selecting-a-channels-machine).
+29. ✅ **The drone's gate phase on re-enable — answered 2026-10-06: it picks up the running counter.** The module's general in-phase rule wins; the drone section's "starts when enabled" wording was the outlier and is corrected in the [machines doc](16-channel-sequencer-machines.md#drone-machine). Enabling a drone mid-run joins the bar where the other channels are, so a re-enable never shifts the phrase.
+
+### Raised by the manual's 2026-10-06 revision
+
+30. ✅ **The play-mode LED — answered 2026-10-06.** **Selection overrides activity:** the selected channel is **solid** in its machine colour, and the other fifteen show activity — lit for **the length of a sounding note**, and **100 ms maximum** for a non-note message, which is what stops a CC7 ramp pinning the LED on. ⚠️ Two firmware consequences: the LED follows the scheduled *gate* (so fractional gates and ratchets produce several short lights per step), and an enabled-but-resting channel is dark, leaving enable readable only from the green LED. See [Modes](#modes).
+31. ✅ **Edit mode with no clock — answered 2026-10-06: it is step editing.** Incoming notes go to the **held** step, and a note arriving with no step held and no clock is **discarded**. ⚠️ One reading flagged rather than decided: while the clock *is* running, a held step is taken to win over quantising. See [Modes](#modes).
+32. **Live recording's write rules — three of five answered** *(2026-10-06)*. ✅ A recorded note **activates** its step; it **merges** with the notes already there under the four-note limit (fifth replaces first); a tie goes to the **next** step, and past the last step it **wraps to step 1**. ❓ Still open: whether **velocity and length** are captured, and what live recording means on **drone, arpeggio and drum**, none of which has a plain per-step pitch. ⚠️ Note the consequence of merge + activate: **live recording can only add**, never remove — undoing a mistake is a hand gesture. See [Live recording](#live-recording).
+33. **Divider `64` at the extremes.** Added 2026-10-06: a step is four whole bars, a maximum gate is 102 bars, and a 128-step channel spans 512. Neither the gate scheduler nor the playhead indication has been thought through at that interval. See [Divider](#divider).
+34. ⚠️ **Unsaved panel edits when the master switches song.** Falls out of OQ 3's answer: the Song Manager names the song, so it can select another one while this module holds edited-but-unsaved channels — and the manual's save/discard gestures are per *channel*, not per song. Auto-save, prompt, or silently discard? Nothing in either module currently notices. See [Keeping the two cards in step](#keeping-the-two-cards-in-step--decided).
+35. ✅ **Stateless machines — ratified 2026-10-06.** Machines are pure behaviour: **5 singletons instead of 80 objects**, every call taking the channel it acts on, no non-const data members. ✅ It **dissolves M7** — with no instance lifetime there is no "created" to interpret, and a swap becomes `machineType = x; validate(ch)`. It also makes the manual's **discard** gesture free (reload the part from SD, no undo copy), makes a save complete by construction, and makes a machine a pure function of (channel, pulse) → scheduled events. ⚠️ Memory is the *weakest* of those gains — ~4 KB on a board with 512 KB of RAM2. ⚠️ **One obligation, and it is a trap:** "all state in channels and steps" must not mean *in the part struct*, because that struct lives in `EXTMEM` and the clock path is forbidden PSRAM. Runtime state needs a **separate `ChannelRuntime rt[16]` in RAM2** — cursor, counters, CC7 ramp position, ratchet sub-counters, pending note-offs, the drone's three sine phases — leaving the `EXTMEM` struct purely persisted, which also keeps runtime values out of the save file. The `IMachine` interface is written in this form in the [machines doc](16-channel-sequencer-machines.md#-stateless-machines--one-instance-per-type-all-state-in-the-channel), and it closes machines-doc collision 7. ❓ The only remnant of M7 is whether `validate()` clears or clamps the step data.

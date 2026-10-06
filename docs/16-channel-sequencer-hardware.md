@@ -634,7 +634,9 @@ The display symbols live in the shared library `custom-symbols` (`C:/Users/tobyd
 
 The 2-digit symbol is the one the NTS-1 module uses (eight instances). Pin numbering splits the segment lines (`A`–`G`, `dp`) and the digit commons (`en1`…) across the two sides; all commons are **cathodes** — see the common-cathode warning above.
 
-⚠️ **The `4_digit` symbol is currently a copy of the `3_digit` one** — same 11 pins, same three `en` commons, same `8.8.8.` body text. It needs a fourth digit enable and a fourth pin before the ENV and TRIGGER windows can be wired. Do not place it as-is.
+✅ **The window widths are confirmed by the human, 2026-10-06** — 2 digits for NOTE 1–4 and VOLUME, 4 for ENV and TRIGGER, 3 for the rest. The table above is the allocation that follows, and it reconciles with the 15-window / 42-digit inventory: 5 × 2 + 8 × 3 + 2 × 4 = 42.
+
+⚠️ **The `4_digit` symbol was a copy of the `3_digit` one** — same 11 pins, same three `en` commons, same `8.8.8.` body text, so it could not wire a fourth digit. [Open item 6](#open-items) records the missing `en4` as **✅ fixed and netlist-verified on 2026-09-18**, which supersedes the "do not place it as-is" warning this paragraph used to carry. ⚠️ **But that closure was verified in the schematic, not in the library.** The `custom-symbols` library is cloned by hand between projects, so the shared copy may still be the stale 11-pin version — which is why **"Update Symbols from Library" on this project can silently undo the fix**. Check `en4` is present in the library before ever running it, and prefer leaving the in-schematic symbol alone.
 
 ⚠️ **None of the three symbols carries a footprint** — the `Footprint` property is empty in the library, so it must be assigned per instance. The NTS-1 module assigns **`Package_DIP:DIP-10_W7.62mm`** to all eight of its 2-digit instances; use the same unless the part differs, and note there is no equivalent precedent for the 3- and 4-digit parts. Verify any generic DIP outline against the actual display's pin pitch and row spacing before layout — a DIP package footprint fixes pin positions but not the body outline or the window position within it, and the window is what has to line up with the panel.
 
@@ -919,6 +921,8 @@ The jacks and the three MIDI DIN sockets are **panel-mount, wired directly to th
 
 **The clock output is a copy of the clock input, and the Teensy is not in the path.** `J21` (`CLOCK-IN`) receives a 5 V clock from the Tempo module; `J18` reproduces it; the Teensy taps it as an interrupt. All the conditioning happens on the **5 V side**, and only the Teensy branch is shifted down — the opposite of the earlier arrangement, which had Teensy pin 6 driving the output.
 
+✅ **The expected level is now stated in the specification, and it agrees with what is drawn.** The user manual's 2026-10-06 revision asks for a "**+5 V** clock signal with 24 ppqn" — the level this conditioning chain was designed around, so nothing here changes. ⚠️ It does not answer [main doc open question 6](16-channel-sequencer.md#open-questions): *where* Case 2's clock comes from is still open, and a patch cable from Case 1's Tempo module is still ruled out.
+
 ```
 J21.2 ──[D20]──┬──[R 1K]──► U12.5  (gate C in, HCT Schmitt, 5 V)
                └──[R 100K]── GND        U12.6 ──► U12.9 (gate D in)
@@ -966,6 +970,165 @@ Two properties make the divider the right choice here rather than a compromise. 
 **Consequence: the module can no longer generate a clock**, only repeat one. That is the intent — it keeps a single timebase for the whole system. Teensy pin 6 is freed. If the option is ever wanted back it is cheap: gate F is spare, so `Teensy 6 → U12.13 → U12.12 → a second diode → J18.2` diode-ORs a Teensy-generated clock onto the same jack alongside `D18`. Worth leaving the pads even if they stay unstuffed.
 
 `U12` then has every gate placed: **A, B, E** for MIDI OUT, **C, D** for the clock, **F** spare or the optional OR.
+
+##### Isolated clock from Case 1 — the hand-wired 6N138 board
+
+✅ **Decided 2026-10-06: Case 2's clock comes from Case 1 through an opto, tapped from Case 1's existing
+clock splitter.** This is transport C of [open question 6](16-channel-sequencer.md#where-the-clock-crosses),
+built as a small hand-wired board, with the barrier at the **Case 2 end**.
+
+⚠️ **The cable does carry Case 1's ground — and that is fine.** An earlier revision of this section said it
+"carries no ground reference", which was wrong. Conductor **B** *is* Case 1 GND; if the Case 1 end is a TS
+plug into the splitter, B is literally the sleeve. The invariant that makes this isolated is narrower and
+more useful:
+
+> **No conductor is common to both grounds.** Case 1's ground enters the cable, crosses into Case 2's
+> enclosure, and **dies on the 6N138's LED cathode (pin 3)** — the input side of the optical barrier. It
+> never reaches Case 2's ground, Case 2's +5 V, or anything referenced to them.
+
+So what separates the legal version from the prohibited patch cable is **only what the far end lands on**:
+
+| Far end of the same two wires | Result |
+|---|---|
+| The **opto's LED** (pins 2–3) | ✅ Isolated. The loop stays entirely Case-1-referenced |
+| Case 2's **CLOCK IN jack** | ❌ Bonded. That jack's sleeve is Case 2 ground, so the two chassis are tied — the thing [rule 2](inter-case-interconnect.md#rules-that-hold-regardless-of-the-link) forbids |
+
+⚠️ **Which makes the connector choice a safety interlock, not a preference.** The Case 1 end may perfectly
+well be a TS plug — it is only a tap. But the **Case 2 end must not be**, and the two ends must be
+*different* connector types, so that the cable physically cannot be plugged into a patch jack. Give it a
+plug that fits nothing on either panel except its own socket.
+
+⚠️ **And treat the LED side of the board as a floating island.** Pins 2 and 3, their traces and the two
+cable cores are at Case 1 potential inside Case 2's enclosure. A pinched wire, a solder whisker or a
+mounting screw touching that side creates the bond silently, with nothing to see and no symptom but hum.
+Keep a visible clearance gap from Case 2's ground pour, its chassis and any hardware.
+
+This is the same arrangement a MIDI input uses — which is exactly what this circuit is, and MIDI has the
+identical property: the sender's ground travels in the cable and stops at the receiver's opto.
+
+**The cable and the LED loop:**
+
+```
+  CASE 1                       │  cable: 2 cond. + shield  │  CASE 2 — hand-wired board
+                               │                           │
+  splitter ──[R_LED]───────────┼────────── A ──────────────┼──┬──────────► pin 2  (LED anode)
+  (Tempo clock, 5 V)           │                           │  │
+                               │                           │ [D_rev]  1N4148, cathode to pin 2
+  CASE 1 GND ──────────────────┼────────── B ──────────────┼──┴──────────► pin 3  (LED cathode)
+                               │                           │
+        shield ─ Case 1 only ──┘   (NOT at both ends)       │
+```
+
+**The board**, with the 6N138 drawn as the DIP it is — pins 1–4 down the left, 8–5 down the right:
+
+```
+                        6N138  (DIP-8)
+                      ┌──────────────────────┐
+         (NC)   1 ────┤ •                    ├──── 8  (VCC) ── +5V
+    LED anode   2 ────┤                      ├──── 7  (VB)  ── open
+  LED cathode   3 ────┤                      ├──── 6  (VO)  ──► see below
+         (NC)   4 ────┤                      ├──── 5  (GND) ──── GND
+                      └──────────────────────┘
+                         C_byp 100n across pins 8–5
+
+        pin 6 (VO) ──┬── [R_PU 2k2] ── +5V
+                     └──► 74HC14 in ──► 74HC14 out ──[D_inj 1N4148]──► CLOCK IN jack, tip terminal
+```
+
+⚠️ **Build from the connection list, not the sketch.** This is the artifact to wire against:
+
+| 6N138 pin | Goes to |
+|---|---|
+| **1** | nothing — NC |
+| **2** (LED anode) | cable conductor **A**, which is `R_LED` from Case 1's splitter node; also `D_rev` **cathode** |
+| **3** (LED cathode) | cable conductor **B**, which is Case 1 GND; also `D_rev` **anode** |
+| **4** | nothing — NC |
+| **5** (GND) | Case 2 GND, and one end of `C_byp` |
+| **6** (VO) | `R_PU` 2.2 kΩ up to +5 V, **and** the 74HC14 gate input |
+| **7** (VB) | open |
+| **8** (VCC) | Case 2 +5 V, and the other end of `C_byp` |
+
+74HC14: pin 14 → +5 V, pin 7 → GND, 100 nF across them at the chip, chosen gate's output → `D_inj` → the
+jack's tip terminal. ⚠️ **Tie the five unused gate inputs to GND.** A floating CMOS input oscillates,
+draws supply current and couples into its neighbours — on a hand-wired board it is the most likely cause
+of a circuit that works on the bench and misbehaves in the case.
+
+⚠️ **Verify the pinout against the datasheet for the parts you have.** The standard 6N138 is 1 NC,
+2 anode, 3 cathode, 4 NC, 5 GND, 6 `V_O`, 7 `V_B`, 8 `V_CC` — the MIDI-input pinout — but a part number is
+not a promise, and this is the one error that costs a chip.
+
+**Bill of materials — five parts.**
+
+| Part | Value | Why |
+|---|---|---|
+| `R_LED` | **2.2 kΩ** to start, **680 Ω** if the node is strong | Sets LED current: 1.6 mA at 2.2 kΩ, 5.1 mA at 680 Ω, from `(5 − 1.5 V) / R` |
+| `D_rev` | 1N4148, **anti-parallel across pins 2–3** (cathode to pin 2) | The 6N138's LED is rated **5 V reverse**. A negative swing on a patched node would exceed it; this clamps to ~0.7 V |
+| `R_PU` | 2.2 kΩ, pin 6 to +5 V | The output is open-collector. 2.2 kΩ gives a faster rise than MIDI's usual 4.7 kΩ, and nothing here needs the current saving |
+| `C_byp` | 100 nF, **pin 8 to pin 5** — not to the +5 V rail somewhere else on the board | Standard, and the output is a Darlington switching into a pull-up |
+| `74HC14` + `D_inj` | one gate; 1N4148 | Inverts (see polarity below) **and** Schmitt-conditions the Darlington's lazy rising edge. `D_inj` lets the panel jack and this feed coexist |
+
+⚠️ **Why a 6N138 is the right part here, and not a 4N35.** The output is a **split Darlington**, so CTR is
+specified at **≥400 % at `I_F` = 1.6 mA** — that is ≥6.4 mA of sink against the 2.1 mA the 2.2 kΩ pull-up
+asks for, **3× margin at the lowest LED current**. That is what lets the circuit work from a *weak* source,
+which matters because Case 1's splitter node may well have a series diode or resistor in it. A plain
+phototransistor opto at CTR ≈ 100 % would be marginal at 1.6 mA.
+
+**Polarity — the one thing that will silently misbehave if it is wrong.** The opto inverts and the 74HC14
+inverts again, so the chain comes out non-inverted and the Teensy's **RISING** interrupt is unchanged:
+
+| Stage | Clock HIGH in Case 1 | Clock LOW |
+|---|---|---|
+| LED | current flows | off |
+| 6N138 pin 6 (open collector) | **LOW** | HIGH (pulled up) |
+| 74HC14 output | **HIGH** | LOW |
+| `D_inj` → jack tip → `D20` → 1 kΩ → `U12.5` | HIGH | LOW |
+| `U12.6` (gate C) / `U12.8` (gate D) | LOW / **HIGH** | HIGH / LOW |
+| Teensy pin 15 via the divider | **HIGH** | LOW |
+
+⚠️ **Skip the 74HC14 and the clock still runs** — on the falling edge, offset by one pulse width, and
+offset *differently* if the source's duty cycle changes with tempo. It looks like a working clock that is
+mysteriously late against Case 1's drums. Fix it in hardware, not with a `FALLING` in firmware.
+
+**Where it lands: the CLOCK IN jack's tip terminal, internally, through `D_inj`.** No main-board
+modification at all — the existing `D20` → 1 kΩ → 100 kΩ → HCT Schmitt conditioning does its usual job.
+⚠️ This is **not** the thing the isolation rule prohibits: the rule is against an external patch cable
+*between the cases*, because of its sleeve ground. An internal wire to the same terminal adds no ground
+path. Two series diodes (`D_inj` + `D20`) drop ~1.4 V, so ~3.6 V reaches the 1 kΩ node against HCT's 2.0 V
+`V_IH` — still comfortable, and the 100 kΩ pulldown already defines the idle low for both sources.
+
+**Three things to get right in the cable and connector:**
+
+1. ⚠️ **Ground the shield at ONE end only — Case 1.** A shield bonded at both ends *is* the second chassis
+   bond this whole circuit exists to avoid. This is the easiest way to build the fault you are preventing.
+2. ⚠️ **The Case 2 end must not be a 3.5 mm jack, and must not match the Case 1 end.** This is an
+   interlock, not a style choice: the two conductors are harmless on the LED and a chassis bond on a jack
+   sleeve, so the cable has to be physically incapable of reaching a patch point. A TS plug at the Case 1
+   tap is fine — it is only a tap — provided the other end fits nothing but its own socket.
+3. ⚠️ **And think twice before using a 5-pin DIN**, tempting though it is — this *is* a MIDI input stage
+   electrically, and the sequencer has a real MIDI IN on the same panel. A DIN-shaped clock-link socket
+   invites someone plugging a keyboard into it, which would inject note data as clock edges. If a DIN is
+   used anyway, label it unmistakably.
+
+✅ **Nothing here is wasted if transport 6a is ever preferred instead.** This board *is* a MIDI input
+stage: feeding it MIDI clock bytes rather than a raw gate changes what drives the loop in Case 1 and what
+reads pin 6 in Case 2, and not one component on the board.
+
+**Before wiring it to the sequencer — two measurements, both quick:**
+
+1. ⚠️ **Load the splitter node with the LED and check it still drives.** This is the one real unknown: if
+   that node has a series diode or resistor, pulling even 1.6 mA may sag it. Start at 2.2 kΩ, confirm pin 6
+   swings fully 0 → 5 V, and only then consider 680 Ω for margin.
+2. **Count edges at the 74HC14 output** against Tempo's BPM — 24 PPQN at 120 BPM is 48 Hz, at 300 BPM
+   120 Hz. Also check the DC level with the clock stopped, which catches a polarity error before it reaches
+   the sequencer.
+
+**Jitter is a non-issue at this rate.** The 6N138's propagation delays are sub-microsecond to a few
+microseconds and asymmetric between edges; against **8.3 ms** between pulses at 300 BPM that is under
+0.05 %. What little edge *variation* the Darlington contributes is in its slow rising edge, which is
+precisely what the Schmitt at its output removes. ⚠️ Check the delay figures in the datasheet for the parts
+you actually have, rather than taking those magnitudes on trust. Pin 7 (`V_B`) is left **open**, as MIDI
+inputs do; a 100 kΩ–1 MΩ resistor from pin 7 to pin 5 sharpens turn-off at some cost in CTR, and is
+unnecessary here.
 
 ##### `J19` RESET cannot register a reset as drawn
 

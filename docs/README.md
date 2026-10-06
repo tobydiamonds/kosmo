@@ -19,7 +19,7 @@ The system is two cases. Case 1 is built and playing; Case 2 is in assembly.
 
 **Case 2 right now:** front panel assembly in progress, most electrical components sourced, **PCBs ordered** (main board, row board, step-settings board). No board has been powered up, and no firmware exists — the software architecture is being planned.
 
-**Inter-case link — decided:** asynchronous **serial plus ground**, Song Manager (Teensy 4.1) → 16-Channel Sequencer (Teensy 4.1). Case 2's main board was designed for it; **Case 1 has not been fitted with it yet**. The protocol itself is not specified. See [Inter-Case Interconnect](inter-case-interconnect.md).
+**Inter-case link — decided:** asynchronous **serial plus ground**, Song Manager (Teensy 4.1) → 16-Channel Sequencer (Teensy 4.1). Case 2's main board was designed for it; **Case 1 has not been fitted with it yet**. The protocol itself is not specified. ✅ **Case 2's clock comes from Case 1 through an opto-isolated link** (2026-10-06) — a 6N138 on a hand-wired board, tapped from Case 1's clock splitter, so it adds no second chassis bond. A patch cable between the cases stays prohibited. See [Inter-Case Interconnect](inter-case-interconnect.md).
 
 **No further modules are planned** in the near future. The two-case split is the system as it stands.
 
@@ -39,10 +39,10 @@ The system is two cases. Case 1 is built and playing; Case 2 is in assembly.
 | Topic | Status |
 |-------|--------|
 | [Power Distribution](power-distribution.md) — mains inlet, fusing, switch wiring, 5 V rail | Validated for Case 1; Case 2 PSU not chosen |
-| [Inter-Case Interconnect](inter-case-interconnect.md) — two-case split, isolation rules, why the link is not raw I2C | Medium decided (serial + ground); **protocol unspecified, Case 1 not fitted** |
+| [Inter-Case Interconnect](inter-case-interconnect.md) — two-case split, isolation rules, why the link is not raw I2C | Medium decided (serial + ground); **protocol unspecified, Case 1 not fitted**. Clock comes **from Case 1 through a 6N138 opto** (2026-10-06) |
 | [16-Channel Sequencer Hardware](16-channel-sequencer-hardware.md) — board slicing, fin row boards, merged master+bus board, chip allocation | **Executed — awaiting validation.** PCBs ordered, never powered |
-| [16-Channel Sequencer Machines](16-channel-sequencer-machines.md) — shell/machine split, input ownership, gesture rules, per-machine input semantics | ✅ **Ratified** 2026-10-05. Five machines; drone and drum specified, arpeggio and chord partial |
-| [16-Channel Sequencer User Manual](16-channel-sequencer-user-manual.md) — how the module behaves from the player's side | ⚠️ **Source of truth** as of 2026-10-05. The specs above are aligned to it |
+| [16-Channel Sequencer Machines](16-channel-sequencer-machines.md) — shell/machine split, input ownership, gesture rules, per-machine input semantics | ✅ **Ratified** 2026-10-05, reconciled to the manual 2026-10-06. Five machines; drone and drum specified, arpeggio and chord partial |
+| [16-Channel Sequencer User Manual](16-channel-sequencer-user-manual.md) — how the module behaves from the player's side | ⚠️ **Source of truth** as of 2026-10-05, **revised 2026-10-06** (+5 V clock level, edit mode = recording, play-mode activity LED, live recording, divider `64`). The specs above are aligned to it |
 
 ## Research / Proposed Features
 
