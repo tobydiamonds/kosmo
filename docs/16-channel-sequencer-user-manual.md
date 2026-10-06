@@ -111,6 +111,7 @@ Determines the tempo the channel advances one step.
 | 8       | 1/2 |
 | 16      | 1/1 |
 | 32      | 2/1 |
+| 64      | 4/1 |
 
 ### Channel length
 Determines the maximum length of the sequence. Min value is 1, max value is 128.
