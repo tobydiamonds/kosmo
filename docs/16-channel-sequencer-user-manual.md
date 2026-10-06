@@ -140,7 +140,7 @@ While in play mode the channel select leds
 indicate when the channel is outputting midi by turning the led off when no messages are being sent.
 
 # Live recording
-When in edit-mode the channel select LED is red. If there is incoming clock it blinks between res and the machine color. Red means recording.
+When in edit-mode the channel select LED  blinks between res and the machine color. Red means recording.
 
 Live recording is when midi notes come from an external midi keyboard while the clock is running. Notes will be quantized to the closest step.
 
