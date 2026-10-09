@@ -239,7 +239,7 @@ assertable in tests: its output is a schedule, not a side effect.
 `pulse()` work happens in the loop, so a long iteration delays but never reorders. `pulse()`
 allocates nothing, touches no SD, and keeps its hot state out of `EXTMEM` — PSRAM is on QSPI and
 does not belong in the clock path. ✅ **Since 2026-10-09 that rule is satisfied by construction, not by
-discipline:** the active part — 32 KiB — is **copied into on-chip RAM** and `pulse()` reads *that* copy,
+discipline:** the active part — 32,896 B, 32.1 KiB — is **copied into on-chip RAM** and `pulse()` reads *that* copy,
 never `EXTMEM`. PSRAM holds the song as backing store only. See
 [Memory Model](16-channel-sequencer.md#memory-model--decided). A machine's own state is a step cursor, a
 pulse counter and some trigger counters.
@@ -259,7 +259,7 @@ channel it acts on, and **no non-const data members anywhere**.
 | Gain | |
 |---|---|
 | **It dissolves the machine-swap question** | Collision 7 and [main doc M7](16-channel-sequencer.md#selecting-a-channels-machine) exist because a machine *instance* has a lifetime — hence "created", hence fresh-vs-reinterpreted. With no instance state, a swap is `machineType = x; validate(ch);` and nothing is constructed, destructed or carried over. The question stops needing an answer rather than getting one |
-| **Discard becomes free** | The manual's long-press *discard changes since the last save* needs either an undo copy or a reload. If the channel struct holds **all** of the state, discard is a straight copy of that channel from the **last-saved baseline**, with no dirty-tracking. ⚠️ **Corrected 2026-10-09:** this used to read "re-read the part from SD". It is not an SD read — the [memory model](16-channel-sequencer.md#memory-model--decided) keeps the baseline song in PSRAM precisely so discard is a PSRAM→PSRAM→RAM copy and the card is never touched during programming. The second copy costs 512 KiB of an 8 MiB chip, which is why the "no second 32 KB" argument no longer has to be won |
+| **Discard becomes free** | The manual's long-press *discard changes since the last save* needs either an undo copy or a reload. If the channel struct holds **all** of the state, discard is a straight copy of that channel from the **last-saved baseline**, with no dirty-tracking. ⚠️ **Corrected 2026-10-09:** this used to read "re-read the part from SD". It is not an SD read — the [memory model](16-channel-sequencer.md#memory-model--decided) keeps the baseline song in PSRAM precisely so discard is a PSRAM→PSRAM→RAM copy and the card is never touched during programming. The second copy costs 514 KiB of an 8 MiB chip, which is why the "no second 32 KB" argument no longer has to be won |
 | **Save is complete by construction** | What is on the card *is* the state. No question of whether a cursor or a phase should have been persisted |
 | **Testability** | A machine's output becomes a pure function of (channel, pulse) → scheduled events, which is what this document already wanted when it said a machine's output should be "a schedule, not a side effect" |
 | **Memory** | ~4 KB saved. ⚠️ **On a board with 512 KB of RAM2 and 8 MB of PSRAM this is noise** — worth saying plainly, because it is the reason the idea came up and the least of its merits |
@@ -268,16 +268,16 @@ channel it acts on, and **no non-const data members anywhere**.
 to go *somewhere*, and the obvious place is the wrong one. Per channel it is a step cursor, a pulse
 counter, trigger counters, the CC7 ramp position, ratchet sub-counters, pending gate-off times, and — on
 the drone — three sine phase accumulators. If those become members of the part's channel struct, they
-land in **`EXTMEM`**, because that is where the persisted 32 KiB of part data lives — and from there into
+land in **`EXTMEM`**, because that is where the persisted 32,896 B of part data lives — and from there into
 the save file. The rule two paragraphs above forbids exactly that: **PSRAM is on QSPI and does not belong
 in the clock path.**
 
 So the shape that works keeps the tiers separate rather than folding runtime state into the part:
 
 ```
-EXTMEM  Part working[16]        // persisted working song — 16 parts x 32 KiB = 512 KiB
-EXTMEM  Part baseline[16]       // last-saved song — the source for the discard gesture
-RAM     Part active             // the resident 32 KiB copy that pulse() reads
+EXTMEM  Part working[16]        // persisted working song - 16 x 32,896 B = 526,336 B (514 KiB)
+EXTMEM  Part baseline[16]       // last-saved song - the source for the discard gesture
+RAM     Part active             // the resident 32,896 B copy that pulse() reads
 RAM2    ChannelRuntime rt[16]   // volatile: cursor, counters, phases, pending note-offs
 ```
 
