@@ -84,7 +84,7 @@ External Clock (24 PPQN) ──→ Song Manager (master) ──┬─ I2C (intra
 
 The 16-Channel Sequencer **stores its own song data on its own SD card**, because a part is 32 KiB and streaming it is not viable at any bus speed here. At run time the master sends only **song index, part index and transport** across the link. The framing for that is not yet specified.
 
-Its memory model is **three tiers** *(decided 2026-10-09)*: the card is touched **only** on song load and save; PSRAM holds the whole song twice (working copy + last-saved baseline, 512 KiB each); and one 32 KiB part sits in on-chip RAM, which is the only thing the clock path reads. A part change is a PSRAM→RAM copy, not a disk read. See [Memory Model](16-channel-sequencer.md#memory-model--decided).
+Its memory model is **three tiers** *(decided 2026-10-09)*: the card is touched **only** on song load and save; PSRAM holds the whole song twice (working copy + last-saved baseline, 512 KiB each); and one 32 KiB part sits in on-chip RAM, which is the only thing the clock path reads. A part change is a PSRAM→RAM copy, not a disk read. **Writes to the card happen only on the master's save command** *(2026-10-09)* — with no Song Manager connected the module sits on song 1, part 0 and never writes the card, so nothing can be saved under a stale song index. ⚠️ The consequence is that standalone edits cannot be persisted at all, which matters during bring-up: Case 1's end of the link is not fitted yet. See [Memory Model](16-channel-sequencer.md#memory-model--decided).
 
 ### I2C Protocol — intra-case only
 
