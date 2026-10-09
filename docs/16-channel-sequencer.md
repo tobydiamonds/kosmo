@@ -26,7 +26,7 @@ Built under the [plan → execute → validate](ways-of-working.md) model from t
 
 16-track MIDI step sequencer. Each track has up to 128 steps, its own clock divider, its own MIDI channel and port, and rich per-step data: up to 4 simultaneous notes, gate length, velocity, envelope shape, 3 CC messages, a program change, and a conditional trigger rule.
 
-Parts are stored on this module's **own SD card**. The Song Manager sends only song index, part index and transport, over the **serial link** between the two cases. Each part holds the full 16-track configuration; the module plays the active part and switches parts on the master's instruction, as the Drum Sequencer does — but it loads the data itself rather than receiving it.
+Songs are stored on this module's **own SD card**. The Song Manager sends only song index, part index and transport, over the **serial link** between the two cases. Each part holds the full 16-track configuration; the module plays the active part and switches parts on the master's instruction, as the Drum Sequencer does — but it loads the data itself rather than receiving it. **The card is touched only on song load and song save:** the whole song sits in PSRAM and the active part is copied into on-chip RAM to be played — see [Memory Model](#memory-model--decided).
 
 Unlike the Drum Sequencer (which is a trigger-per-step grid), this module is a full note sequencer — the step grid shows one track at a time, and the bottom third of the panel is a step-parameter editor.
 
@@ -280,9 +280,9 @@ per-channel state, so a swap is `machineType = x; validate(ch); reset(rt)`.
 | Settled | |
 |---|---|
 | **Nothing is constructed or destructed** | There is no instance to create, so the manual's word *"created"* has no mechanical consequence to interpret. No heap anywhere, therefore no leak; no per-channel object, therefore no stale pointer mid-press |
-| **No second copy of the step data** | The channel's ≈ 32 KB stays where it is and the new machine reinterprets it through `validate()`. Copying it to roll back would cost another 32 KB of `EXTMEM` per channel |
+| **No second copy of the step data** | The channel's **2 KiB** stays where it is and the new machine reinterprets it through `validate()`. ⚠️ **Two corrections, 2026-10-09.** This row previously read "≈ 32 KB … per channel", which is the size of a *part*, not a channel — a channel is 128 steps × 16 B = **2 KiB**. And the memory argument no longer carries any weight: the [memory model](#memory-model--decided) already keeps a second copy of the **whole song** in PSRAM with 7 MiB spare, so cost is not what rules out a rollback copy |
 | **Runtime state is dropped, not migrated** | `reset(rt)` clears the cursor, counters and phases in `ChannelRuntime` (RAM2). Nothing from the old machine's runtime can leak into the new one, which was the subtle risk in the stateful version |
-| **Therefore no undo** | Without a copy there is nothing to restore, so the swap is committed the moment green is released |
+| **Therefore no undo** | Without a copy there is nothing to restore, so the swap is committed the moment green is released. ⚠️ **The PSRAM baseline is not a substitute** *(2026-10-09)*: it holds the **last-saved** song, not the pre-swap state, so reverting to it would throw away every unsaved edit on that channel and not just the machine change. The decision therefore stands on that ground rather than on memory cost |
 
 ❓ **What is still open is the step data: does `validate()` clear to defaults, or clamp in place?** Both
 cost the same memory, so the criterion does not choose between them. ⚠️ Note what the combination implies:
@@ -618,8 +618,9 @@ SequencerPart
     └── enabled:     uint8_t  (0 or 1 — disabled channels advance silently)
 ```
 
-**Size:** 16 bytes per step × 128 steps = 2 KB per channel, ≈ 32.9 KB per part, ≈ **526 KB for 16
-parts**. `machineType` adds 16 bytes per part, which is noise against that.
+**Size:** 16 bytes per step × 128 steps = **2 KiB per channel**, **32 KiB per part** (32,768 B, plus 16 B
+of `machineType` = 32,784 B), **512 KiB for a 16-part song**. The full per-tier budget is in
+[Memory Model](#memory-model--decided) below.
 
 ✅ **`machineType` is now required**, since the machine concept is ratified — a Step therefore becomes
 a **machine-interpreted payload** rather than a fixed record, and the same 16 bytes mean different
@@ -635,9 +636,103 @@ it is not among the per-lane settings.
 ⚠️ **One field still unsettled:** a **key/root** field, if the `C-M` scale display form is ever
 chosen. Not needed for the four scales being built first.
 
-That comfortably exceeds the Teensy 4.1's 512 KB of RAM2, so part storage belongs in **PSRAM
-(`EXTMEM`)**, as the Song Manager already does for its large structs. The 8 MB PSRAM leaves plenty of
-headroom.
+### Memory Model — decided
+
+✅ **Three tiers, decided 2026-10-09.** The SD card is touched **only** on song load and song save;
+PSRAM holds the whole song twice; the clock path reads a copy of the active part in on-chip RAM. This
+**supersedes** two earlier readings of this document — that each part is loaded from SD on the master's
+instruction, and that playback reads step data out of `EXTMEM`. Neither is true under this model.
+
+| Tier | Holds | Size | Touched when |
+|---|---|---|---|
+| **SD card** | `song_<index>` — the whole 16-part song | 512 KiB per song | **Only** on the master's LoadSong / SaveSong |
+| **PSRAM (`EXTMEM`)** | **Working song** — 16 parts, live state | 512 KiB | Part write-back, load, save |
+| | **Baseline song** — last-saved state | 512 KiB | Load, save, discard |
+| **On-chip RAM** | **Active part** — all 16 channels | 32 KiB | Every step; this is what `pulse()` reads |
+| | Second part buffer *(see [OQ 37](#raised-by-the-manuals-2026-10-06-revision))* | 32 KiB | Filled on `SetPartIndex` |
+| | `ChannelRuntime rt[16]` | ~4 KiB | Every pulse |
+
+**The arithmetic**, from the 16-byte step record above:
+
+| | Bytes | |
+|---|---|---|
+| Step | 16 | |
+| Channel | 128 × 16 = **2,048** | 2 KiB |
+| Part | 16 × 2,048 = **32,768** (+16 B `machineType`) | 32 KiB |
+| Song | 16 × 32,768 = **524,288** | 512 KiB |
+
+Resident total: **1 MiB of the 8 MiB PSRAM (12.5 %)**, leaving 7 MiB spare, and **~68 KiB of on-chip
+RAM**.
+
+#### ⚠️ Why all 16 parts cannot simply live in RAM
+
+The question is worth recording because the answer is not "it is close". A 16-part song is 512 KiB, and
+the Teensy 4.1's 1 MiB of on-chip RAM is **two separate pools**, not one allocation. Measured from a
+compile on this board (`free for local variables` / `free for malloc/new`):
+
+| Pool | Usable | Shares with |
+|---|---|---|
+| **RAM1 DTCM** | **448 KiB** — 64 KiB of the 512 KiB FlexRAM went to ITCM for code | stack, every ordinary global |
+| **RAM2 OCRAM** | **512 KiB** | `DMAMEM` allocations |
+
+512 KiB of parts **is the whole of RAM2**, leaving nothing for anything else, and splitting the array
+across both pools leaves no usable margin once the real firmware's other consumers are counted — 4×
+`MIDIDevice_BigBuffer` for USB host, SD buffers, the 128-LED RGB frame buffers, the MAX7219 chains and
+the stack, none of which are in the figures above. **One part in RAM, the song in PSRAM, is therefore
+not a compromise — it is the only arrangement that fits.**
+
+#### Why PSRAM stops being the play source
+
+The machines doc's context rule — PSRAM is on QSPI and does not belong in the clock path — becomes
+satisfied **by construction** rather than by careful coding: `pulse()` reads a 32 KiB RAM buffer and
+never addresses `EXTMEM` at all. PSRAM is backing store, not the play source.
+
+#### The flow
+
+| Event | Action |
+|---|---|
+| Master `LoadSong(n)` | SD `song_<n>` → PSRAM **working and baseline**; copy part 0 → RAM |
+| Master `SetPartIndex(p)` | **Write the live RAM part back to the PSRAM working copy first**, then copy part *p* PSRAM → RAM |
+| UI edit (edit mode) | Mutates the **RAM** copy, selected channel only |
+| Edit mode ends | Write the RAM part back to the PSRAM working copy |
+| Channel discard gesture | Copy that channel PSRAM **baseline** → working → RAM. **No SD read** |
+| Master `SaveSong(n)` | PSRAM working → baseline, then baseline → SD `song_<n>` |
+
+⚠️ **The write-back on part change is a consequence of the model, not part of the human's statement of
+it.** Edits live in the RAM buffer, so an incoming `SetPartIndex` would otherwise overwrite them
+silently. The trigger is therefore **part change or edit-mode exit, whichever comes first**, and it
+targets PSRAM, not SD. Recorded here as the smallest rule that makes the model coherent.
+
+✅ **Timing — measured 2026-10-09, and the risk is closed.** The part swap is a 32 KiB PSRAM→RAM copy
+that must finish inside one step interval. The tightest case is divider 1 at high tempo: a 16th note at
+200 BPM is **75 ms**, so the copy needs better than **0.44 MB/s**. The full `teensy41_psram_memtest`
+sweep on this board moved **912 MiB** — 57 patterns, each writing 8 MiB and reading back 8 MiB with
+verification — in **29.60 s**, i.e. **~31 MiB/s aggregate**. That figure *includes* `volatile`
+word-at-a-time access, three xorshift rounds per word on the random passes and a full 8 MiB cache flush
+every pass, so it is a **floor, not a ceiling**. At that rate a 32 KiB part copies in **~1 ms against a
+75 ms budget — about 70× margin**. ❓ A direct `memcpy` benchmark is still the cleaner measurement, but
+nothing about the part-swap budget is in doubt. Do the copy in the loop, never in the clock ISR.
+
+⚠️ **Which pool the RAM buffers live in is a measurement, not a planning decision.** `ChannelRuntime`
+is already specified as RAM2; whether the part buffers join it there or go to DTCM should follow a
+timing measurement, not this document.
+
+✅ **The PSRAM this model rests on is validated** *(2026-10-09)*. One 8 MB chip fitted to position 1 of
+the sequencer's Teensy 4.1, detected at **8 Mbyte / 105.6 MHz**, and `teensy41_psram_memtest` passed the
+**full sweep — 57 patterns (44 pseudo-random, 13 fixed) over the whole 8 MiB — with zero errors in
+29.60 s**. Status: the hardware is **Validated**; the memory model itself is **Planned**, pending
+firmware. ⚠️ Detection failed on the first attempt and was fixed by reworking solder joints, so the
+single chip occupies the `FLEXSPI2_A_SS0_B` footprint — a chip in the other (flash) position reads
+0 Mbyte, because the core's `configure_external_ram()` probes position 1 first and gives up if it is
+absent.
+
+**Precedent — the Song Manager, plus one tier.** `song-manager-v2.ino:33,36` holds
+`EXTMEM Channel parts[PARTS]` as the working copy and `EXTMEM Song currentSong` as the baseline;
+`onProgrammingEnded` copies working → baseline then saves to SD, and `onProgrammingCancelled` copies
+baseline → working **with no SD read**. ⚠️ Note what the Song Manager does *not* do, since it is easy to
+assume otherwise: it keeps **no RAM-resident copy** and performs **no swap on programming start/end** —
+`onProgrammingStarted` only logs. It edits `EXTMEM` in place, because it never reads step data on a
+tick. This module does, which is the entire reason for the third tier.
 
 ---
 
@@ -957,7 +1052,7 @@ Part data is **stored on this module's own SD card**, not streamed across the li
 
 *The move to serial does not reopen this.* A UART is faster than 100 kHz I2C, but not by the order of magnitude that would make streaming 32.9 KB per part change viable, and the whole point of local storage is that a part change is instant. Local SD stands.
 
-So at run time the Song Manager sends only **song index, part index, and transport**, and this module loads the part from its own SD card. Part changes become instant, and chaining works.
+So at run time the Song Manager sends only **song index, part index, and transport**, and this module supplies the part itself. ⚠️ **A part change is not an SD read.** The whole song is already in PSRAM by then, so a part change is a 32 KiB PSRAM→RAM copy and the card is not touched at all — the card sees only LoadSong and SaveSong. That is what makes part changes instant and chaining work. See [Memory Model](#memory-model--decided).
 
 **This makes the Teensy 4.1's built-in SD slot a hard requirement of the schematic** (and rules out the Teensy 4.0).
 
@@ -1083,7 +1178,8 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 | USB power | Devices self-powered; **hub fed from the Kosmo 5 V rail through a 500 mA polyfuse**, Teensy VHST left unconnected. ⚠️ A 40 A rail reaching USB connectors needs current limiting: per-port switches on a fabbed board, **the polyfuse on a bought module — coarser but mandatory** |
 | USB hub form | **Bought module first** *(revised 2026-09-17)* — bare 4-port USB 2.0, FE1.1s or GL850G, **with an external 5 V input**. A custom PCB is stage 2, built only if bring-up shows a reason; if built, off the master board |
 | USB ground isolation | **None built in** *(revised 2026-09-17)* — if hum appears, fit an inline full-speed USB isolator dongle upstream of the hub. The earlier "split plane now, it cannot be retrofitted" argument applies to a fabbed board, and was not a reason to fab one |
-| Part storage | **Local SD card** on this module. Master sends song index, part index and transport only |
+| Part storage | **Local SD card** on this module. Master sends song index, part index and transport only. ⚠️ The card is read and written **only** on LoadSong / SaveSong — never on a part change |
+| Memory model | **Three tiers** *(2026-10-09)*. SD on load/save only; **PSRAM holds the song twice** — working copy + last-saved baseline, 512 KiB each; **one 32 KiB part resident in on-chip RAM** is what the clock path reads. All 16 parts in RAM is not an option: 512 KiB is the whole of RAM2. ✅ PSRAM validated 2026-10-09 — full memtest pass, 8 MB at 105.6 MHz. See [Memory Model](#memory-model--decided) |
 | Control link | **Asynchronous serial + ground** to the Song Manager *(2026-10-03)*. Not on Case 1's I2C bus; address 11 moot. Both ends Teensy 4.1 at 3.3 V, so no level shifting. ⚠️ Protocol still unspecified, but see the three rows below |
 | Link semantics | **Inherited from the I2C instruction set unchanged** *(2026-10-06)*. ⚠️ Except load song / save song, which that set has no opcode for |
 | Link framing | **Serialized text, one packet per line, newline-terminated** *(2026-10-06)* — the same idiom as the song files and both CLIs. Resync is "discard to the next newline" |
@@ -1199,4 +1295,6 @@ A full hardware architecture pass — I/O budget, board split, and KiCad hierarc
 32. **Live recording's write rules — three of five answered** *(2026-10-06)*. ✅ A recorded note **activates** its step; it **merges** with the notes already there under the four-note limit (fifth replaces first); a tie goes to the **next** step, and past the last step it **wraps to step 1**. ❓ Still open: whether **velocity and length** are captured, and what live recording means on **drone, arpeggio and drum**, none of which has a plain per-step pitch. ⚠️ Note the consequence of merge + activate: **live recording can only add**, never remove — undoing a mistake is a hand gesture. See [Live recording](#live-recording).
 33. **Divider `64` at the extremes.** Added 2026-10-06: a step is four whole bars, a maximum gate is 102 bars, and a 128-step channel spans 512. Neither the gate scheduler nor the playhead indication has been thought through at that interval. See [Divider](#divider).
 34. ⚠️ **Unsaved panel edits when the master switches song.** Falls out of OQ 3's answer: the Song Manager names the song, so it can select another one while this module holds edited-but-unsaved channels — and the manual's save/discard gestures are per *channel*, not per song. Auto-save, prompt, or silently discard? Nothing in either module currently notices. See [Keeping the two cards in step](#keeping-the-two-cards-in-step--decided).
-35. ✅ **Stateless machines — ratified 2026-10-06.** Machines are pure behaviour: **5 singletons instead of 80 objects**, every call taking the channel it acts on, no non-const data members. ✅ It **dissolves M7** — with no instance lifetime there is no "created" to interpret, and a swap becomes `machineType = x; validate(ch)`. It also makes the manual's **discard** gesture free (reload the part from SD, no undo copy), makes a save complete by construction, and makes a machine a pure function of (channel, pulse) → scheduled events. ⚠️ Memory is the *weakest* of those gains — ~4 KB on a board with 512 KB of RAM2. ⚠️ **One obligation, and it is a trap:** "all state in channels and steps" must not mean *in the part struct*, because that struct lives in `EXTMEM` and the clock path is forbidden PSRAM. Runtime state needs a **separate `ChannelRuntime rt[16]` in RAM2** — cursor, counters, CC7 ramp position, ratchet sub-counters, pending note-offs, the drone's three sine phases — leaving the `EXTMEM` struct purely persisted, which also keeps runtime values out of the save file. The `IMachine` interface is written in this form in the [machines doc](16-channel-sequencer-machines.md#-stateless-machines--one-instance-per-type-all-state-in-the-channel), and it closes machines-doc collision 7. ❓ The only remnant of M7 is whether `validate()` clears or clamps the step data.
+35. ✅ **Stateless machines — ratified 2026-10-06.** Machines are pure behaviour: **5 singletons instead of 80 objects**, every call taking the channel it acts on, no non-const data members. ✅ It **dissolves M7** — with no instance lifetime there is no "created" to interpret, and a swap becomes `machineType = x; validate(ch)`. It also makes the manual's **discard** gesture free (a copy from the last-saved baseline, no undo copy — ⚠️ *corrected 2026-10-09: this said "reload the part from SD"; the baseline lives in PSRAM and discard never touches the card*), makes a save complete by construction, and makes a machine a pure function of (channel, pulse) → scheduled events. ⚠️ Memory is the *weakest* of those gains — ~4 KB on a board with 512 KB of RAM2. ⚠️ **One obligation, and it is a trap:** "all state in channels and steps" must not mean *in the part struct*, because that struct lives in `EXTMEM` and the clock path is forbidden PSRAM. Runtime state needs a **separate `ChannelRuntime rt[16]` in RAM2** — cursor, counters, CC7 ramp position, ratchet sub-counters, pending note-offs, the drone's three sine phases — leaving the `EXTMEM` struct purely persisted, which also keeps runtime values out of the save file. The `IMachine` interface is written in this form in the [machines doc](16-channel-sequencer-machines.md#-stateless-machines--one-instance-per-type-all-state-in-the-channel), and it closes machines-doc collision 7. ❓ The only remnant of M7 is whether `validate()` clears or clamps the step data.
+36. ✅ **The memory model — answered 2026-10-09: three tiers.** SD on load/save only, the song held **twice** in PSRAM (working + last-saved baseline), **one 32 KiB part resident in on-chip RAM** as the only thing the clock path reads. All 16 parts in RAM was considered and is not possible — 512 KiB is the whole of RAM2. See [Memory Model](#memory-model--decided). ❓ **What remains is the SD save trigger.** The model writes the RAM part back to *PSRAM* when edit mode ends, but whether edit-mode exit also writes *SD* is undecided — and if it does, it needs a song index, which [OQ 3's answer](#keeping-the-two-cards-in-step--decided) deliberately denies this module: it has no "current song" of its own and would have to use whatever index the master last named. ⚠️ This is [OQ 34](#raised-by-the-manuals-2026-10-06-revision) seen from the other side, and PSRAM makes it sharper: PSRAM is volatile, so everything since the last SD write dies with the power.
+37. ✅ **The part-swap copy budget — largely answered by measurement, 2026-10-09.** A part change copies 32 KiB PSRAM→RAM and must complete inside one step interval; the tightest case is divider 1 at 200 BPM, a **75 ms** window needing better than **0.44 MB/s**. The full memtest sweep measured **~31 MiB/s aggregate** (912 MiB of write-plus-verify in 29.60 s) with per-word `volatile` access and a full cache flush every pass, so it is a floor — a 32 KiB part copies in **~1 ms, roughly 70× inside budget**. ❓ What remains is not the rate: whether the swap still wants **double buffering** (a second 32 KiB buffer filled on `SetPartIndex` and pointer-flipped on the step boundary, making the swap atomic rather than merely fast enough), and whether the buffers belong in DTCM or RAM2. Both are firmware-time choices now, not blockers. See [Memory Model](#memory-model--decided).

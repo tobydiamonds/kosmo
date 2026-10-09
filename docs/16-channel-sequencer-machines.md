@@ -20,7 +20,7 @@ Companion to [16-channel-sequencer.md](16-channel-sequencer.md) (behaviour) and
 | Chord machine colour | ✅ **CYAN** *(2026-10-06)* |
 | Arpeggio machine colour | ✅ **MAGENTA** *(2026-10-06)*. Cycle order: sequencer → chord → drone → arpeggio → drum |
 | Modes | ⚠️ **Two, not three** — the manual's 2026-10-06 revision makes **edit mode the recording mode**, so `TrackMode` loses `REALTIME_EDIT`. Edit blinks the machine colour against **red**; in play mode the LED is dark while the channel sends no MIDI |
-| Machine statefulness | ✅ **Stateless — ratified 2026-10-06.** 5 singletons; persisted state in `Channel` (`EXTMEM`), runtime state in `ChannelRuntime[16]` (RAM2). Closes collision 7 |
+| Machine statefulness | ✅ **Stateless — ratified 2026-10-06.** 5 singletons; persisted state in `Channel` (`EXTMEM`), runtime state in `ChannelRuntime[16]` (RAM2). Closes collision 7. ⚠️ **Since 2026-10-09** `pulse()` reads the **RAM-resident copy** of the active part, not `EXTMEM` — see [Memory Model](16-channel-sequencer.md#memory-model--decided) |
 | Firmware | **Not started** |
 
 ✅ **The machine concept is ratified, and the precedence has changed.** The
@@ -238,8 +238,11 @@ assertable in tests: its output is a schedule, not a side effect.
 ⚠️ **Context discipline.** The clock ISR increments a counter and sets a flag; nothing else. All
 `pulse()` work happens in the loop, so a long iteration delays but never reorders. `pulse()`
 allocates nothing, touches no SD, and keeps its hot state out of `EXTMEM` — PSRAM is on QSPI and
-does not belong in the clock path. The 32.9 KB of step data stays in `EXTMEM`; a machine's own state
-is a step cursor, a pulse counter and some trigger counters.
+does not belong in the clock path. ✅ **Since 2026-10-09 that rule is satisfied by construction, not by
+discipline:** the active part — 32 KiB — is **copied into on-chip RAM** and `pulse()` reads *that* copy,
+never `EXTMEM`. PSRAM holds the song as backing store only. See
+[Memory Model](16-channel-sequencer.md#memory-model--decided). A machine's own state is a step cursor, a
+pulse counter and some trigger counters.
 
 **Allocation: static, no heap.** No placement new, no arena, no fragmentation, and no stale pointer when
 a machine is swapped mid-press. As drawn — one machine object per channel, 5 types × 16 channels at tens
@@ -256,7 +259,7 @@ channel it acts on, and **no non-const data members anywhere**.
 | Gain | |
 |---|---|
 | **It dissolves the machine-swap question** | Collision 7 and [main doc M7](16-channel-sequencer.md#selecting-a-channels-machine) exist because a machine *instance* has a lifetime — hence "created", hence fresh-vs-reinterpreted. With no instance state, a swap is `machineType = x; validate(ch);` and nothing is constructed, destructed or carried over. The question stops needing an answer rather than getting one |
-| **Discard becomes free** | The manual's long-press *discard changes since the last save* needs either an undo copy or a reload. If the channel struct holds **all** of the state, discard is "re-read the part from SD" — no copy, no dirty-tracking, no second 32 KB |
+| **Discard becomes free** | The manual's long-press *discard changes since the last save* needs either an undo copy or a reload. If the channel struct holds **all** of the state, discard is a straight copy of that channel from the **last-saved baseline**, with no dirty-tracking. ⚠️ **Corrected 2026-10-09:** this used to read "re-read the part from SD". It is not an SD read — the [memory model](16-channel-sequencer.md#memory-model--decided) keeps the baseline song in PSRAM precisely so discard is a PSRAM→PSRAM→RAM copy and the card is never touched during programming. The second copy costs 512 KiB of an 8 MiB chip, which is why the "no second 32 KB" argument no longer has to be won |
 | **Save is complete by construction** | What is on the card *is* the state. No question of whether a cursor or a phase should have been persisted |
 | **Testability** | A machine's output becomes a pure function of (channel, pulse) → scheduled events, which is what this document already wanted when it said a machine's output should be "a schedule, not a side effect" |
 | **Memory** | ~4 KB saved. ⚠️ **On a board with 512 KB of RAM2 and 8 MB of PSRAM this is noise** — worth saying plainly, because it is the reason the idea came up and the least of its merits |
@@ -265,20 +268,27 @@ channel it acts on, and **no non-const data members anywhere**.
 to go *somewhere*, and the obvious place is the wrong one. Per channel it is a step cursor, a pulse
 counter, trigger counters, the CC7 ramp position, ratchet sub-counters, pending gate-off times, and — on
 the drone — three sine phase accumulators. If those become members of the part's channel struct, they
-land in **`EXTMEM`**, because that is where the 32.9 KB of part data lives. The rule two paragraphs above
-forbids exactly that: **PSRAM is on QSPI and does not belong in the clock path.**
+land in **`EXTMEM`**, because that is where the persisted 32 KiB of part data lives — and from there into
+the save file. The rule two paragraphs above forbids exactly that: **PSRAM is on QSPI and does not belong
+in the clock path.**
 
-So the shape that works is **two arrays, not one struct**:
+So the shape that works keeps the tiers separate rather than folding runtime state into the part:
 
 ```
-EXTMEM  Part.channel[16]        // persisted: divider, lastStep, volume, scale,
-                                //            midiChannel, midiPort, enabled, step[128]
+EXTMEM  Part working[16]        // persisted working song — 16 parts x 32 KiB = 512 KiB
+EXTMEM  Part baseline[16]       // last-saved song — the source for the discard gesture
+RAM     Part active             // the resident 32 KiB copy that pulse() reads
 RAM2    ChannelRuntime rt[16]   // volatile: cursor, counters, phases, pending note-offs
 ```
 
-`pulse()` then touches only `rt[]` and reads `Part.channel[]`, which is the access pattern the clock path
-already needs. It also keeps the save file free of runtime values, so adding a counter later is not a file
-format change.
+`pulse()` then touches only `rt[]` and reads `active.channel[]` — **both on-chip**, which is the access
+pattern the clock path already needs. It also keeps the save file free of runtime values, so adding a
+counter later is not a file format change.
+
+⚠️ **Updated 2026-10-09** from a two-line form that had `pulse()` reading the `EXTMEM` part directly. The
+obligation above is unchanged but its reason has shifted: runtime state in the channel struct would now be
+**written to the save file and copied on every part swap**, as well as dragging the clock path toward
+PSRAM. See [Memory Model](16-channel-sequencer.md#memory-model--decided).
 
 Two smaller notes: **stateless does not mean instance-free** — 5 singletons with vtables are still the
 cleanest dispatch, and a machine-specific runtime payload can be a union or a byte blob in

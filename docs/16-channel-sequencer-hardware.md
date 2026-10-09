@@ -894,6 +894,31 @@ So on the boards as ordered, both headers are **ground breakouts with a misleadi
 
 ⚠️ **Cut the VUSB/VIN pads on the underside of the module.** The Teensy is powered from the 5 V Kosmo bus on VIN, and USB gets plugged in for programming — without the cut, a PC's USB 5 V is tied to a 40 A rail. PJRC documents the pad pair for exactly this case. It is a knife job on the Teensy itself, not something the PCB does, so it belongs on the build checklist.
 
+#### ✅ PSRAM fitted and validated — 2026-10-09
+
+One **8 MB PSRAM chip** (QSPI, `APS6404L`-class) is soldered to the **first** of the two bottom-side
+footprints — the one on `FLEXSPI2_A_SS0_B` / `GPIO_EMC_24`. Verified with
+[`teensy41_psram_memtest`](https://github.com/PaulStoffregen/teensy41_psram_memtest): **8 Mbyte detected
+at 105.6 MHz, and the full sweep of 57 patterns (44 pseudo-random, 13 fixed) across the whole 8 MiB
+passed with zero errors in 29.60 s** — ~31 MiB/s aggregate, including per-word `volatile` access and a
+full cache flush every pass. This is the hardware the sequencer's
+[memory model](16-channel-sequencer.md#memory-model--decided) rests on.
+
+⚠️ **Which footprint matters, and the failure mode is silent.** The core's `configure_external_ram()`
+(`cores/teensy4/startup.c`) probes position 1 first and **gives up entirely if it is empty** — it never
+looks at position 2. A chip soldered to the second (flash) footprint therefore reports `0 Mbyte`,
+indistinguishable from no chip at all. The core also **whitelists the vendor ID**: only `0x5D0D`
+(AP / Ipus / ESP / Lyontek) and `0x5D9D` (ISSI) are accepted, so an unlisted or counterfeit part reads 0
+even if perfectly soldered.
+
+⚠️ **The first attempt here read `0 Mbyte` and was fixed by reworking the joints** — so treat a 0 as a
+solder fault before suspecting the part. Check **CS and SCK first**: the ID read is a plain SPI-mode
+command, so an open CS or SCK fails detection outright, whereas a bad `SIO2`/`SIO3` would usually detect
+fine and then fail the pattern tests.
+
+The chip adds ~1 mm on the underside, within the clearance the female headers already provide, so it does
+not change the stack-height budget above.
+
 ⚠️ **The footprint in the project has 14 pads too many, all wrongly through-hole.** `teensy.pretty/Teensy41.kicad_mod` has 67 `thru_hole` pads:
 
 | Pads | What | Verdict |
